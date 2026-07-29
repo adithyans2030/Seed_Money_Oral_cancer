@@ -4,8 +4,38 @@ import 'package:google_fonts/google_fonts.dart';
 import '../theme.dart';
 import '../widgets/nav_bar.dart';
 
-class HomeScreen extends StatelessWidget {
+import 'package:shared_preferences/shared_preferences.dart';
+
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  bool _isClinician = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMode();
+  }
+
+  Future<void> _loadMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _isClinician = prefs.getBool('clinician_mode') ?? false;
+    });
+  }
+
+  Future<void> _toggleMode(bool val) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('clinician_mode', val);
+    setState(() {
+      _isClinician = val;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -17,6 +47,13 @@ class HomeScreen extends StatelessWidget {
       body: SingleChildScrollView(
         child: Column(
           children: [
+            SwitchListTile(
+              title: const Text('Clinician Mode'),
+              subtitle: const Text('Enable to log ground-truth clinical diagnoses'),
+              value: _isClinician,
+              onChanged: _toggleMode,
+              activeColor: AppColors.rust,
+            ),
             _HeroSection(),
             _FeaturesSection(),
             _HowItWorksSection(),
@@ -188,6 +225,14 @@ class _HeroCards extends StatelessWidget {
           desc: 'Compare a lesion photo to our clinical database',
           onTap: () => context.go('/matcher'),
         ),
+        const SizedBox(height: 10),
+        _HeroCard(
+          icon: '🔬',
+          iconBg: AppColors.rustMid.withOpacity(0.2),
+          title: 'Combined Triage',
+          desc: 'Fuse questionnaire & image matcher for a final risk score',
+          onTap: () => context.go('/combined-risk'),
+        ),
       ],
     );
   }
@@ -308,6 +353,14 @@ class _FeaturesSection extends StatelessWidget {
         desc: 'Upload a photo of an oral lesion. AI finds the most visually similar benign and malignant cases from our indexed clinical image database.',
         btnLabel: 'Open Matcher →',
         onTap: () => context.go('/matcher'),
+      ),
+      _FeatureData(
+        badge: 'SYNTHESIS',
+        title: 'Combined Triage',
+        desc: 'Have you completed both the screener and image matcher? View your unified, AI-fused clinical risk assessment.',
+        btnLabel: 'View Synthesis →',
+        onTap: () => context.go('/combined-risk'),
+        badgeColor: AppColors.rustMid,
       ),
       _FeatureData(
         badge: 'ALWAYS REMEMBER',

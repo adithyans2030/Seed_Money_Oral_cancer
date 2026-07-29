@@ -3,8 +3,12 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme.dart';
 import '../widgets/nav_bar.dart';
+import '../widgets/clinician_bottom_sheet.dart';
 import '../models/questionnaire_models.dart';
 import '../models/questionnaire_data.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 class QuestionnaireScreen extends StatefulWidget {
   const QuestionnaireScreen({super.key});
@@ -57,7 +61,137 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
   void _setDiffAnswer(DiffQuestion d, AnswerValue val) =>
       setState(() => d.answer = val);
 
-  void _evaluate() {
+  Future<void> _evaluate() async {
+    final prefs = await SharedPreferences.getInstance();
+    final cbirSessionId = prefs.getString('cbir_session_id');
+
+    final allQ = _sections.expand((s) => s.questions).toList();
+    final allD = allQ.expand((q) => q.diffQuestions).toList();
+    
+    bool isYes(String id) => 
+      allQ.any((q) => q.id == id && q.answer == AnswerValue.yes) ||
+      allD.any((d) => d.id == id && d.answer == AnswerValue.yes);
+
+    final body = jsonEncode({
+      "answers": {
+        "age": 35, // default
+        "gender": 1, // default male
+        "region": "Unknown",
+        "q_tobacco": isYes('c1') ? 1 : 0,
+        "q_alcohol": isYes('c4') ? 1 : 0,
+        "q_hpv": isYes('c5') ? 1 : 0,
+        "q_betel": isYes('c3') ? 1 : 0,
+        "q_sun": isYes('c6') ? 1 : 0,
+        "q_hygiene": 0,
+        "q_diet": 0,
+        "q_family": isYes('c7') ? 1 : 0,
+        "q_immune": isYes('c9') ? 1 : 0,
+        "q_lesions": (isYes('s1') || isYes('c8')) ? 1 : 0,
+        "q_bleeding": 0,
+        "q_swallowing": isYes('s5') ? 1 : 0,
+        "q_patches": isYes('s2') ? 1 : 0,
+        "questionnaire_raw": {}
+      },
+      "session_id": cbirSessionId
+    });
+
+    try {
+      final res = await http.post(
+        Uri.parse('https://gprabhanjana-oral-cancer-cbir-api.hf.space/predict-risk'),
+        headers: {'Content-Type': 'application/json'},
+        body: body,
+      );
+      
+      if (res.statusCode == 200) {
+         final data = jsonDecode(res.body);
+         final riskLabel = data['risk_label'] as String;
+         final riskScore = data['risk_score'] as double;
+         
+         RiskResult result;
+         if (riskLabel == 'High') {
+            result = RiskResult(
+              level: RiskLevel.high,
+              title: 'High Risk — Seek Immediate Consultation',
+              body: 'Your AI assessed risk score is ${(riskScore*100).toStringAsFixed(1)}%.\n\nPlease consult a dentist, oral surgeon, or oncologist as soon as possible — ideally within the next 1–2 weeks. Do not wait for symptoms to worsen.',
+              bullets: [
+                'Book an urgent appointment with an oral health specialist',
+                'Bring a list of all medications, habits, and symptom duration',
+              ],
+            );
+         } else if (riskLabel == 'Moderate') {
+            result = RiskResult(
+              level: RiskLevel.caution,
+              title: 'Elevated Risk — Caution Advised',
+              body: 'Your AI assessed risk score is ${(riskScore*100).toStringAsFixed(1)}%.\n\nWhile the absence of symptoms is reassuring, your risk profile warrants attention. Schedule a routine oral cancer screening with your dentist if you have not had one in the past year.',
+              bullets: [
+                'Schedule an oral cancer screening examination',
+                'Discuss your risk factors openly with your dentist or GP',
+              ],
+            );
+         } else {
+            result = RiskResult(
+              level: RiskLevel.none,
+              title: 'No Immediate Concerns Identified',
+              body: 'Your AI assessed risk score is ${(riskScore*100).toStringAsFixed(1)}%.\n\nBased on your responses, you have not reported significant risk factors or active symptoms associated with oral cancer at this time.',
+              bullets: [
+                'Attend regular dental check-ups at least once a year',
+                'Maintain a healthy diet and limit alcohol consumption',
+              ],
+            );
+         }
+         
+         setState(() => _result = result);
+         
+         if (cbirSessionId != null) {
+           _checkCombinedRisk(cbirSessionId);
+         }
+         
+         WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (_resultKey.currentContext != null) {
+              Scrollable.ensureVisible(_resultKey.currentContext!,
+                  duration: const Duration(milliseconds: 500),
+                  curve: Curves.easeInOut);
+            }
+         });
+         return;
+      }
+    } catch (e) {
+      debugPrint("API failed: $e");
+    }
+
+    _fallbackEvaluate();
+  }
+
+  Future<void> _checkCombinedRisk(String sessionId) async {
+    try {
+      final res = await http.post(
+        Uri.parse('https://gprabhanjana-oral-cancer-cbir-api.hf.space/combined-risk'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({"session_id": sessionId}),
+      );
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (data['combined_risk_label'] != null) {
+          // Just appending it to the existing body for simplicity
+          setState(() {
+            if (_result != null) {
+              _result = RiskResult(
+                level: _result!.level,
+                title: _result!.title,
+                body: '${_result!.body}\n\nCOMBINED TRIAGE ASSESSMENT:\n${data['combined_risk_label']} - ${data['recommendation']}',
+                bullets: _result!.bullets,
+                diffNote: _result!.diffNote,
+              );
+            }
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint("Combined risk failed: $e");
+    }
+  }
+
+  void _fallbackEvaluate() {
     const causeIds   = ['c1','c2','c3','c4','c5','c6','c7','c8','c9'];
     const symptomIds = ['s1','s2','s3','s4','s5','s6','s7','s8','s9'];
     const diffIds    = ['d1','d2','d3','d4','d5','d6','d7','d8'];
@@ -636,14 +770,37 @@ class _ToggleBtn extends StatelessWidget {
 
 // ─── RESULT CARD ──────────────────────────────────────────────────────────────
 
-class _ResultCard extends StatelessWidget {
+class _ResultCard extends StatefulWidget {
   final RiskResult result;
   final VoidCallback onReset;
+  final String? sessionId;
 
-  const _ResultCard({required this.result, required this.onReset});
+  const _ResultCard({required this.result, required this.onReset, this.sessionId});
+
+  @override
+  State<_ResultCard> createState() => _ResultCardState();
+}
+
+class _ResultCardState extends State<_ResultCard> {
+  bool _isClinician = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkMode();
+  }
+  
+  Future<void> _checkMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() {
+        _isClinician = prefs.getBool('clinician_mode') ?? false;
+      });
+    }
+  }
 
   Color get _headerColor {
-    switch (result.level) {
+    switch (widget.result.level) {
       case RiskLevel.high:          return const Color(0xFF9B1C1C);
       case RiskLevel.caution:       return const Color(0xFFB45309);
       case RiskLevel.consult:       return const Color(0xFF1E5A8E);
@@ -683,7 +840,7 @@ class _ResultCard extends StatelessWidget {
                         letterSpacing: 2.5,
                         color: Colors.white70)),
                 const SizedBox(height: 6),
-                Text(result.title,
+                Text(widget.result.title,
                     style: GoogleFonts.playfairDisplay(
                         fontSize: 20 * fs,
                         color: Colors.white,
@@ -696,10 +853,10 @@ class _ResultCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(result.body,
+                Text(widget.result.body,
                     style: GoogleFonts.sourceSans3(
                         fontSize: 13 * fs, height: 1.8, color: AppColors.ink)),
-                if (result.diffNote != null) ...[
+                if (widget.result.diffNote != null) ...[
                   const SizedBox(height: 12),
                   Container(
                     padding: const EdgeInsets.all(12),
@@ -708,7 +865,7 @@ class _ResultCard extends StatelessWidget {
                           Border(left: BorderSide(color: AppColors.sage, width: 3)),
                       color: Color(0xFFEEF6F3),
                     ),
-                    child: Text(result.diffNote!,
+                    child: Text(widget.result.diffNote!,
                         style: GoogleFonts.sourceSans3(
                             fontSize: 12 * fs,
                             color: AppColors.sage,
@@ -716,7 +873,7 @@ class _ResultCard extends StatelessWidget {
                   ),
                 ],
                 const SizedBox(height: 14),
-                ...result.bullets.map((b) => Padding(
+                ...widget.result.bullets.map((b) => Padding(
                       padding: const EdgeInsets.only(bottom: 8),
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -741,11 +898,23 @@ class _ResultCard extends StatelessWidget {
                 SizedBox(
                   width: isMobile ? double.infinity : null,
                   child: OutlinedButton.icon(
-                    onPressed: onReset,
+                    onPressed: widget.onReset,
                     icon: const Icon(Icons.refresh, size: 16),
                     label: const Text('Start Over'),
                   ),
                 ),
+                if (_isClinician && widget.sessionId != null) ...[
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: isMobile ? double.infinity : null,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(backgroundColor: AppColors.rust, foregroundColor: Colors.white),
+                      onPressed: () => ClinicianDiagnosisBottomSheet.show(context, widget.sessionId!),
+                      icon: const Icon(Icons.medical_services, size: 16),
+                      label: const Text('Submit Clinical Diagnosis'),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

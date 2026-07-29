@@ -7,6 +7,8 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../theme.dart';
 import '../widgets/nav_bar.dart';
+import '../widgets/clinician_bottom_sheet.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 // ─── Data models ──────────────────────────────────────────────────────────────
 
@@ -44,6 +46,7 @@ class _MatcherScreenState extends State<MatcherScreen> {
   bool _showQuality = false;
   List<MatchResult> _benign = [];
   List<MatchResult> _malignant = [];
+  String? _sessionId;
   final _picker = ImagePicker();
 
   Future<void> _pickImage(ImageSource source) async {
@@ -91,6 +94,7 @@ class _MatcherScreenState extends State<MatcherScreen> {
         final lowCount = all.where((r) => r.similarity < 0.55).length;
 
         setState(() {
+          _sessionId = sessionId;
           _benign = benignList;
           _malignant = malignantList;
           _showQuality = all.isNotEmpty && lowCount > all.length / 2;
@@ -117,6 +121,7 @@ class _MatcherScreenState extends State<MatcherScreen> {
       _pickedBytes = null;
       _benign = [];
       _malignant = [];
+      _sessionId = null;
       _showQuality = false;
       _loading = false;
     });
@@ -131,7 +136,7 @@ class _MatcherScreenState extends State<MatcherScreen> {
   @override
   Widget build(BuildContext context) {
     final isMobile = Bp.isMobile(context);
-    final isWide = Bp.isWide(context);
+    final widget.isWide = Bp.widget.isWide(context);
     final hPad = isMobile ? 16.0 : 20.0;
     final fs = fontScale(context);
 
@@ -187,10 +192,10 @@ class _MatcherScreenState extends State<MatcherScreen> {
                 if (_benign.isNotEmpty || _malignant.isNotEmpty) ...[
                   const SizedBox(height: 28),
                   _ResultsSection(
-                    benign: _benign,
-                    malignant: _malignant,
+                    benign: _widget.benign,
+                    malignant: _widget.malignant,
                     userImageBytes: _pickedBytes,
-                    isWide: isWide,
+                    widget.isWide: widget.isWide,
                   ),
                 ],
                 const SizedBox(height: 36),
@@ -499,18 +504,42 @@ class _QualityWarning extends StatelessWidget {
 
 // ─── RESULTS SECTION ──────────────────────────────────────────────────────────
 
-class _ResultsSection extends StatelessWidget {
+class _ResultsSection extends StatefulWidget {
   final List<MatchResult> benign;
   final List<MatchResult> malignant;
   final Uint8List? userImageBytes;
-  final bool isWide;
+  final bool widget.isWide;
+  final String? sessionId;
 
   const _ResultsSection({
-    required this.benign,
-    required this.malignant,
+    required this.widget.benign,
+    required this.widget.malignant,
     required this.userImageBytes,
-    required this.isWide,
+    required this.widget.isWide,
+    this.sessionId,
   });
+
+  @override
+  State<_ResultsSection> createState() => _ResultsSectionState();
+}
+
+class _ResultsSectionState extends State<_ResultsSection> {
+  bool _isClinician = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkMode();
+  }
+
+  Future<void> _checkMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() {
+        _isClinician = prefs.getBool('clinician_mode') ?? false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -531,15 +560,15 @@ class _ResultsSection extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 16),
-        isWide
+        widget.isWide
             ? Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
                       child: _ResultColumn(
-                          results: benign,
+                          results: widget.benign,
                           type: 'benign',
-                          userImageBytes: userImageBytes)),
+                          userImageBytes: widget.userImageBytes)),
                   Container(
                     width: 1,
                     color: AppColors.border,
@@ -548,24 +577,40 @@ class _ResultsSection extends StatelessWidget {
                   ),
                   Expanded(
                       child: _ResultColumn(
-                          results: malignant,
+                          results: widget.malignant,
                           type: 'malignant',
-                          userImageBytes: userImageBytes)),
+                          userImageBytes: widget.userImageBytes)),
                 ],
               )
             : Column(
                 children: [
                   _ResultColumn(
-                      results: benign,
+                      results: widget.benign,
                       type: 'benign',
-                      userImageBytes: userImageBytes),
+                      userImageBytes: widget.userImageBytes),
                   const SizedBox(height: 24),
                   _ResultColumn(
-                      results: malignant,
+                      results: widget.malignant,
                       type: 'malignant',
-                      userImageBytes: userImageBytes),
+                      userImageBytes: widget.userImageBytes),
                 ],
               ),
+        if (_isClinician && widget.sessionId != null) ...[
+          const SizedBox(height: 24),
+          SizedBox(
+            width: widget.isWide ? null : double.infinity,
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.rust,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              ),
+              onPressed: () => ClinicianDiagnosisBottomSheet.show(context, widget.sessionId!),
+              icon: const Icon(Icons.medical_services, size: 18),
+              label: const Text('Submit Clinical Diagnosis'),
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -586,7 +631,7 @@ class _ResultColumn extends StatelessWidget {
     final label = isBenign ? 'Benign Matches' : 'Malignant Matches';
     final fs = fontScale(context);
 
-    final crossCount = Bp.isWide(context) ? 3 : (Bp.isMobile(context) ? 2 : 3);
+    final crossCount = Bp.widget.isWide(context) ? 3 : (Bp.isMobile(context) ? 2 : 3);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -628,7 +673,7 @@ class _ResultColumn extends StatelessWidget {
     showDialog(
       context: context,
       builder: (_) => _LightboxDialog(
-          result: result, type: type, userImageBytes: userImageBytes),
+          result: result, type: type, userImageBytes: widget.userImageBytes),
     );
   }
 }

@@ -1,0 +1,782 @@
+[
+  {
+    "filename": "dummy_path/img_1211.jpg",
+    "label": "benign"
+  },
+  {
+    "filename": "dummy_path/img_431.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_703.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_4.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_73.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_728.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_105.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_1253.jpg",
+    "label": "benign"
+  },
+  {
+    "filename": "dummy_path/img_600.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_961.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_38.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_1015.jpg",
+    "label": "benign"
+  },
+  {
+    "filename": "dummy_path/img_564.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_483.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_234.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_512.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_287.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_895.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_505.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_625.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_1241.jpg",
+    "label": "benign"
+  },
+  {
+    "filename": "dummy_path/img_395.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_489.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_790.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_574.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_1163.jpg",
+    "label": "benign"
+  },
+  {
+    "filename": "dummy_path/img_1232.jpg",
+    "label": "benign"
+  },
+  {
+    "filename": "dummy_path/img_1297.jpg",
+    "label": "benign"
+  },
+  {
+    "filename": "dummy_path/img_132.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_1029.jpg",
+    "label": "benign"
+  },
+  {
+    "filename": "dummy_path/img_833.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_393.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_874.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_75.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_1105.jpg",
+    "label": "benign"
+  },
+  {
+    "filename": "dummy_path/img_691.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_252.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_169.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_1144.jpg",
+    "label": "benign"
+  },
+  {
+    "filename": "dummy_path/img_257.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_1164.jpg",
+    "label": "benign"
+  },
+  {
+    "filename": "dummy_path/img_36.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_906.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_995.jpg",
+    "label": "benign"
+  },
+  {
+    "filename": "dummy_path/img_996.jpg",
+    "label": "benign"
+  },
+  {
+    "filename": "dummy_path/img_446.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_263.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_1141.jpg",
+    "label": "benign"
+  },
+  {
+    "filename": "dummy_path/img_1033.jpg",
+    "label": "benign"
+  },
+  {
+    "filename": "dummy_path/img_1262.jpg",
+    "label": "benign"
+  },
+  {
+    "filename": "dummy_path/img_871.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_1018.jpg",
+    "label": "benign"
+  },
+  {
+    "filename": "dummy_path/img_1027.jpg",
+    "label": "benign"
+  },
+  {
+    "filename": "dummy_path/img_942.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_117.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_967.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_1227.jpg",
+    "label": "benign"
+  },
+  {
+    "filename": "dummy_path/img_1126.jpg",
+    "label": "benign"
+  },
+  {
+    "filename": "dummy_path/img_761.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_820.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_768.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_491.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_1192.jpg",
+    "label": "benign"
+  },
+  {
+    "filename": "dummy_path/img_264.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_162.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_366.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_124.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_1187.jpg",
+    "label": "benign"
+  },
+  {
+    "filename": "dummy_path/img_886.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_595.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_434.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_983.jpg",
+    "label": "benign"
+  },
+  {
+    "filename": "dummy_path/img_399.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_1109.jpg",
+    "label": "benign"
+  },
+  {
+    "filename": "dummy_path/img_606.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_547.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_15.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_882.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_1268.jpg",
+    "label": "benign"
+  },
+  {
+    "filename": "dummy_path/img_89.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_876.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_95.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_173.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_1182.jpg",
+    "label": "benign"
+  },
+  {
+    "filename": "dummy_path/img_824.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_1221.jpg",
+    "label": "benign"
+  },
+  {
+    "filename": "dummy_path/img_760.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_345.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_1210.jpg",
+    "label": "benign"
+  },
+  {
+    "filename": "dummy_path/img_1019.jpg",
+    "label": "benign"
+  },
+  {
+    "filename": "dummy_path/img_272.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_1103.jpg",
+    "label": "benign"
+  },
+  {
+    "filename": "dummy_path/img_417.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_1037.jpg",
+    "label": "benign"
+  },
+  {
+    "filename": "dummy_path/img_729.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_179.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_635.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_964.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_544.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_276.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_521.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_889.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_518.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_717.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_669.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_1234.jpg",
+    "label": "benign"
+  },
+  {
+    "filename": "dummy_path/img_278.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_441.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_108.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_1024.jpg",
+    "label": "benign"
+  },
+  {
+    "filename": "dummy_path/img_57.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_1272.jpg",
+    "label": "benign"
+  },
+  {
+    "filename": "dummy_path/img_638.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_863.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_740.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_288.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_452.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_185.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_396.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_456.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_42.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_271.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_920.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_340.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_349.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_41.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_826.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_385.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_1245.jpg",
+    "label": "benign"
+  },
+  {
+    "filename": "dummy_path/img_236.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_188.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_150.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_1009.jpg",
+    "label": "benign"
+  },
+  {
+    "filename": "dummy_path/img_565.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_1023.jpg",
+    "label": "benign"
+  },
+  {
+    "filename": "dummy_path/img_783.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_153.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_24.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_1266.jpg",
+    "label": "benign"
+  },
+  {
+    "filename": "dummy_path/img_500.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_304.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_487.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_1039.jpg",
+    "label": "benign"
+  },
+  {
+    "filename": "dummy_path/img_988.jpg",
+    "label": "benign"
+  },
+  {
+    "filename": "dummy_path/img_114.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_801.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_555.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_524.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_817.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_515.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_1274.jpg",
+    "label": "benign"
+  },
+  {
+    "filename": "dummy_path/img_859.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_692.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_675.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_142.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_880.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_1028.jpg",
+    "label": "benign"
+  },
+  {
+    "filename": "dummy_path/img_99.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_496.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_85.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_734.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_750.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_52.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_822.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_46.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_1124.jpg",
+    "label": "benign"
+  },
+  {
+    "filename": "dummy_path/img_571.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_689.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_938.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_664.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_738.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_1295.jpg",
+    "label": "benign"
+  },
+  {
+    "filename": "dummy_path/img_726.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_284.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_116.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_1214.jpg",
+    "label": "benign"
+  },
+  {
+    "filename": "dummy_path/img_690.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_1131.jpg",
+    "label": "benign"
+  },
+  {
+    "filename": "dummy_path/img_474.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_498.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_301.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_1080.jpg",
+    "label": "benign"
+  },
+  {
+    "filename": "dummy_path/img_335.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_379.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_1191.jpg",
+    "label": "benign"
+  },
+  {
+    "filename": "dummy_path/img_191.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_195.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_839.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_1063.jpg",
+    "label": "benign"
+  },
+  {
+    "filename": "dummy_path/img_175.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_921.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_786.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_98.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_941.jpg",
+    "label": "malignant"
+  },
+  {
+    "filename": "dummy_path/img_167.jpg",
+    "label": "malignant"
+  }
+]

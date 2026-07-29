@@ -416,6 +416,41 @@
 
   <div class="progress-bar-wrap"><div class="progress-bar" id="progressBar"></div></div>
 
+  <!-- DEMOGRAPHICS -->
+  <div class="section" id="demographicsSection">
+    <div class="section-header">
+      <div class="section-icon icon-cause">&#128100;</div>
+      <div>
+        <h2>Demographics</h2>
+        <div class="subtitle">Basic information to improve risk assessment accuracy.</div>
+      </div>
+    </div>
+    
+    <div class="question-item">
+      <div class="q-text">Age:</div>
+      <div style="flex-shrink:0;">
+        <input type="number" id="demoAge" placeholder="e.g. 45" style="padding: 8px; border: 1px solid var(--border); border-radius: 4px; width: 100px; font-family: 'Source Sans 3', sans-serif;">
+      </div>
+    </div>
+
+    <div class="question-item">
+      <div class="q-text">Gender:</div>
+      <div style="flex-shrink:0;">
+        <select id="demoGender" style="padding: 8px; border: 1px solid var(--border); border-radius: 4px; width: 140px; font-family: 'Source Sans 3', sans-serif;">
+          <option value="1">Male</option>
+          <option value="0">Female/Other</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="question-item">
+      <div class="q-text">Region (Optional):</div>
+      <div style="flex-shrink:0;">
+        <input type="text" id="demoRegion" placeholder="e.g. India" style="padding: 8px; border: 1px solid var(--border); border-radius: 4px; width: 140px; font-family: 'Source Sans 3', sans-serif;">
+      </div>
+    </div>
+  </div>
+
   <!-- ── SECTION A: RISK FACTORS ─────────────────────────────── -->
   <div class="section">
     <div class="section-header">
@@ -778,7 +813,126 @@
     document.getElementById('progressBar').style.width = pct + '%';
   }
 
-  function evaluate() {
+  async function evaluate() {
+    var age = document.getElementById('demoAge').value;
+    var gender = document.getElementById('demoGender').value;
+    var region = document.getElementById('demoRegion').value || 'Unknown';
+    
+    if (!age) {
+       alert("Please enter your age.");
+       return;
+    }
+    
+    document.getElementById('submitBtn').textContent = 'Analyzing...';
+    document.getElementById('submitBtn').disabled = true;
+
+    const payload = {
+      answers: {
+        age: parseInt(age),
+        gender: parseInt(gender),
+        region: region,
+        q_tobacco: answers.c1 === 'yes' ? 1 : 0,
+        q_alcohol: answers.c4 === 'yes' ? 1 : 0,
+        q_hpv: answers.c5 === 'yes' ? 1 : 0,
+        q_betel: answers.c3 === 'yes' ? 1 : 0,
+        q_sun: answers.c6 === 'yes' ? 1 : 0,
+        q_hygiene: 0,
+        q_diet: 0,
+        q_family: answers.c7 === 'yes' ? 1 : 0,
+        q_immune: answers.c9 === 'yes' ? 1 : 0,
+        q_lesions: (answers.s1 === 'yes' || answers.c8 === 'yes') ? 1 : 0,
+        q_bleeding: 0,
+        q_swallowing: answers.s5 === 'yes' ? 1 : 0,
+        q_patches: answers.s2 === 'yes' ? 1 : 0,
+        questionnaire_raw: answers
+      },
+      session_id: localStorage.getItem('cbir_session_id') || null
+    };
+    
+    try {
+      const res = await fetch('https://gprabhanjana-oral-cancer-cbir-api.hf.space/predict-risk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) throw new Error('API Error');
+      const data = await res.json();
+      
+      showResultCard(data.risk_label, data.risk_score, data.top_features);
+      
+      if (localStorage.getItem('cbir_session_id')) {
+        checkCombinedRisk(localStorage.getItem('cbir_session_id'));
+      }
+    } catch (e) {
+      console.warn("API failed, falling back to heuristic", e);
+      fallbackEvaluate();
+    } finally {
+      document.getElementById('submitBtn').textContent = 'Evaluate My Risk';
+      document.getElementById('submitBtn').disabled = false;
+    }
+  }
+
+  function showResultCard(label, score, features) {
+     var card   = document.getElementById('resultCard');
+     var header = document.getElementById('resultHeader');
+     var title  = document.getElementById('resultTitle');
+     var body   = document.getElementById('resultBody');
+
+     let riskClass, titleText, bodyHTML;
+     if (label === 'High') {
+        riskClass = 'risk-high';
+        titleText = 'High Risk \u2014 Seek Immediate Consultation';
+        bodyHTML = '<p>Your risk score is <strong>' + (score*100).toFixed(1) + '%</strong>. Please consult a dentist or oncologist as soon as possible.</p>';
+     } else if (label === 'Moderate') {
+        riskClass = 'risk-caution';
+        titleText = 'Elevated Risk \u2014 Caution Advised';
+        bodyHTML = '<p>Your risk score is <strong>' + (score*100).toFixed(1) + '%</strong>. Schedule a routine oral cancer screening with your dentist.</p>';
+     } else {
+        riskClass = 'risk-none';
+        titleText = 'No Immediate Concerns Identified';
+        bodyHTML = '<p>Your risk score is <strong>' + (score*100).toFixed(1) + '%</strong>. Maintain a healthy diet and limit alcohol consumption.</p>';
+     }
+     
+     if (features && features.length) {
+        bodyHTML += '<p><strong>Top driving factors:</strong> ' + features.join(', ') + '</p>';
+     }
+
+     header.className = 'result-header ' + riskClass;
+     title.textContent = titleText;
+     body.innerHTML = bodyHTML + '<div id="combinedRiskCard" style="display:none; margin-top:16px; padding:16px; border:1px solid #d9cec4; border-radius:8px;"></div><br><button class="reset-btn" id="resetBtn">\u21ba Start Over</button>';
+     document.getElementById('resetBtn').addEventListener('click', resetForm);
+     card.classList.add('visible');
+     card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  async function checkCombinedRisk(sessionId) {
+    try {
+      const res = await fetch('https://gprabhanjana-oral-cancer-cbir-api.hf.space/combined-risk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: sessionId })
+      });
+      if (res.ok) {
+        const crData = await res.json();
+        if (crData.combined_risk_label) {
+           const card = document.getElementById('combinedRiskCard');
+           card.style.display = 'block';
+           card.innerHTML = `
+             <h4 style="margin-bottom:8px; font-family: 'Playfair Display', serif; font-size: 18px; font-weight: normal;">Combined Triage Assessment</h4>
+             <div style="font-weight:600; margin-bottom:8px; font-size: 14px;">${crData.combined_risk_label}</div>
+             <p style="font-size:14px; color: var(--ink);">${crData.recommendation}</p>
+           `;
+           if (crData.urgency_color === 'red') card.style.backgroundColor = 'var(--rust-light)';
+           else if (crData.urgency_color === 'green') card.style.backgroundColor = 'var(--sage-light)';
+           else card.style.backgroundColor = '#fff8e6';
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  function fallbackEvaluate() {
     var causeKeys   = ['c1','c2','c3','c4','c5','c6','c7','c8','c9'];
     var symptomKeys = ['s1','s2','s3','s4','s5','s6','s7','s8','s9'];
     var diffKeys    = ['d1','d2','d3','d4','d5','d6','d7','d8'];

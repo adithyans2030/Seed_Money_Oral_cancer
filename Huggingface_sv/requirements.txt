@@ -6,3 +6,8 @@ pillow
 numpy
 scikit-learn
 python-multipart
+supabase
+xgboost
+joblib
+imagehash
+python-dotenv

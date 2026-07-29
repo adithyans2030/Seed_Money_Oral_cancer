@@ -235,6 +235,24 @@ nav {
 .quality-tips li { font-size: 13px; color: #8a6a10; display: flex; align-items: flex-start; gap: 8px; }
 .quality-tips li::before { content: "→"; color: #c98a2e; flex-shrink: 0; margin-top: 1px; }
 
+/* Decision Banner */
+.decision-banner { display: none; padding: 16px; margin-bottom: 24px; border-radius: 8px; border-left: 4px solid; }
+.decision-banner.visible { display: block; }
+.decision-banner h3 { font-size: 16px; margin-bottom: 4px; font-family: 'Playfair Display', serif; }
+.decision-banner p { font-size: 14px; }
+.banner-monitor { background: var(--sage-light); border-color: var(--sage); color: var(--sage); }
+.banner-refer { background: #fff8e6; border-color: #e8c84a; color: #8a6a10; }
+.banner-urgent { background: var(--rust-light); border-color: var(--rust); color: var(--rust); }
+
+/* Combined Risk Card */
+.combined-risk-card { margin-bottom: 24px; padding: 16px; border-radius: 8px; border: 1px solid var(--border); background: var(--white); }
+.combined-risk-card h3 { font-size: 18px; font-family: 'Playfair Display', serif; margin-bottom: 8px; }
+.combined-risk-card p { font-size: 14px; color: var(--muted); }
+.combined-risk-label { font-weight: 600; padding: 4px 8px; border-radius: 4px; font-size: 12px; display: inline-block; margin-bottom: 8px; }
+.cr-green { background: var(--sage-light); color: var(--sage); }
+.cr-amber { background: #fff8e6; color: #8a6a10; }
+.cr-red { background: var(--rust-light); color: var(--rust); }
+
 /* RESULTS SECTION */
 .results-section { display: none; }
 .results-section.visible { display: block; }
@@ -611,7 +629,7 @@ footer p { font-size: 13px; line-height: 1.7; max-width: 480px; margin: 0 auto; 
       <!-- Loading bar -->
       <div class="loading-bar" id="loadingBar">
         <div class="loading-spinner"></div>
-        <span>Analyzing image against clinical database…</span>
+        <span>Analyzing image... this may take up to 30 seconds</span>
       </div>
     </div>
   </div>
@@ -632,6 +650,16 @@ footer p { font-size: 13px; line-height: 1.7; max-width: 480px; margin: 0 auto; 
 
   <!-- RESULTS -->
   <div class="results-section" id="resultsSection">
+    
+    <!-- Decision Banner -->
+    <div id="decisionBanner" class="decision-banner">
+      <h3 id="decisionTitle">AI Analysis Result</h3>
+      <p id="decisionText"></p>
+    </div>
+
+    <!-- Combined Risk Card -->
+    <div id="combinedRiskCard" class="combined-risk-card" style="display:none;"></div>
+
     <div class="results-header">
       <h2>Matched Cases</h2>
       <span style="font-size:13px; color:var(--muted);">Click any image to compare with your photo</span>
@@ -739,6 +767,19 @@ async function analyzeImage(file) {
     );
     const data = await response.json();
     document.getElementById('loadingBar').classList.remove('visible');
+    
+    if (data.session_id) {
+      localStorage.setItem('cbir_session_id', data.session_id);
+    }
+    
+    if (data.decision) {
+      const banner = document.getElementById('decisionBanner');
+      banner.className = 'decision-banner visible';
+      if (data.decision.action === 'monitor') banner.classList.add('banner-monitor');
+      else if (data.decision.action === 'refer') banner.classList.add('banner-refer');
+      else banner.classList.add('banner-urgent');
+      document.getElementById('decisionText').textContent = data.decision.label + ' (' + (data.decision.confidence * 100).toFixed(1) + '% confidence)';
+    }
 
     const benign = (data.results.benign || []).slice(0, 6);
     const malignant = (data.results.malignant || []).slice(0, 6);
@@ -755,10 +796,41 @@ async function analyzeImage(file) {
     renderGrid(benign, 'benignGrid', 'benign');
     renderGrid(malignant, 'malignantGrid', 'malignant');
     document.getElementById('resultsSection').classList.add('visible');
+    
+    if (data.session_id) {
+      checkCombinedRisk(data.session_id);
+    }
 
   } catch (err) {
     document.getElementById('loadingBar').classList.remove('visible');
     alert('Error connecting to the AI service. Please try again.');
+  }
+}
+
+async function checkCombinedRisk(sessionId) {
+  try {
+    const res = await fetch('https://gprabhanjana-oral-cancer-cbir-api.hf.space/combined-risk', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: sessionId })
+    });
+    if (res.ok) {
+      const crData = await res.json();
+      if (crData.combined_risk_label) {
+         const card = document.getElementById('combinedRiskCard');
+         card.style.display = 'block';
+         let colorClass = 'cr-amber';
+         if (crData.urgency_color === 'green') colorClass = 'cr-green';
+         if (crData.urgency_color === 'red') colorClass = 'cr-red';
+         card.innerHTML = `
+           <h3>Combined Triage Assessment</h3>
+           <div class="combined-risk-label ${colorClass}">${crData.combined_risk_label}</div>
+           <p>${crData.recommendation}</p>
+         `;
+      }
+    }
+  } catch (e) {
+    console.error('Combined risk check failed', e);
   }
 }
 
