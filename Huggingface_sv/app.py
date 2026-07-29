@@ -13,7 +13,7 @@ import io
 import logging
 import os
 import uuid
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Literal
 
 import joblib
 import numpy as np
@@ -45,7 +45,7 @@ INDEX_PATH     = "cbir_index.npz"
 RISK_MODEL_PATH = "risk_model.pkl"
 IMG_SIZE       = 224
 TOP_K          = 6        # matches to return per class
-INCONCL_THRESH = 0.08     # |malignant_score - benign_score| below this → Inconclusive
+INCONCL_THRESH = 0.765    # Tuned threshold for MobileNetV2 cosine similarity mean of top k
 
 # Validation Versions
 INDEX_VERSION = "index_v2_20250723"
@@ -179,41 +179,56 @@ def compute_decision(
     malignant_results: List[Dict],
 ) -> Dict[str, Any]:
     """
-    Derive a binary decision + confidence from top-3 benign and malignant similarities.
+    Derive a binary decision + confidence from top-k (k=5) matches across both classes.
 
     Returns:
         {
             label: "Benign pattern" | "Malignant pattern" | "Inconclusive",
             action: "monitor" | "urgent_refer" | "refer",
-            confidence: float (0–1, prob of malignancy),
+            confidence: float (0–1, mean similarity of winning class),
             malignant_score: float,
             benign_score: float,
         }
     """
-    top3_mal = sorted(malignant_results, key=lambda x: x["similarity"], reverse=True)[:3]
-    top3_ben = sorted(benign_results,   key=lambda x: x["similarity"], reverse=True)[:3]
+    # Combine all results and sort by similarity descending
+    all_results = benign_results + malignant_results
+    all_results = sorted(all_results, key=lambda x: x["similarity"], reverse=True)
+    
+    # Take top k
+    k = 5
+    top_k = all_results[:k]
 
-    mal_score = float(np.mean([r["similarity"] for r in top3_mal])) if top3_mal else 0.0
-    ben_score = float(np.mean([r["similarity"] for r in top3_ben])) if top3_ben else 0.0
+    mal_matches = [r for r in top_k if r.get("label", "").lower() == "malignant"]
+    ben_matches = [r for r in top_k if r.get("label", "").lower() == "benign"]
 
-    total = mal_score + ben_score
-    confidence = round(mal_score / total, 4) if total > 1e-8 else 0.5
+    mal_count = len(mal_matches)
+    ben_count = len(ben_matches)
+    
+    # Calculate scores for payload consistency
+    mal_score = float(np.mean([r["similarity"] for r in mal_matches])) if mal_matches else 0.0
+    ben_score = float(np.mean([r["similarity"] for r in ben_matches])) if ben_matches else 0.0
 
-    diff = mal_score - ben_score
-    if abs(diff) < INCONCL_THRESH:
-        label  = "Inconclusive"
-        action = "refer"
-    elif diff > 0:
-        label  = "Malignant pattern"
+    # Majority vote
+    if mal_count > ben_count:
+        winning_class = "Malignant pattern"
+        confidence = mal_score
         action = "urgent_refer"
     else:
-        label  = "Benign pattern"
+        winning_class = "Benign pattern"
+        confidence = ben_score
         action = "monitor"
+
+    # Inconclusive check based on tuned threshold
+    if confidence < INCONCL_THRESH:
+        label = "Inconclusive"
+        action = "refer"
+    else:
+        label = winning_class
 
     return {
         "label":           label,
         "action":          action,
-        "confidence":      confidence,
+        "confidence":      round(confidence, 4),
         "malignant_score": round(mal_score, 4),
         "benign_score":    round(ben_score, 4),
     }
@@ -337,6 +352,7 @@ class RiskAnswers(BaseModel):
 
     # Optional metadata for session logging
     region:                 Optional[str] = None
+    occupation:             Optional[Literal['Manual Labour', 'Office', 'Other']] = None
     questionnaire_raw:      Optional[Dict[str, Any]] = None  # raw {c1:"yes", ...} for logging
 
 
@@ -594,6 +610,7 @@ async def predict_risk(request: PredictRiskRequest):
             "age":                      ans.age,
             "gender":                   "Male" if ans.gender == 1 else "Female/Other",
             "region":                   ans.region,
+            "occupation":               ans.occupation,
             "questionnaire_answers":    ans.questionnaire_raw or {},
             "questionnaire_risk_label": risk_label,
             "questionnaire_risk_score": round(risk_score, 4),
@@ -778,6 +795,17 @@ def get_metrics(admin: bool = Depends(verify_admin_key)):
                         if is_tn: by_gender[g]["TN"] += 1
                         if is_fn: by_gender[g]["FN"] += 1
                         
+                    # Subgroup Occupation
+                    occupation = sess.get('occupation')
+                    if occupation:
+                        o = occupation.title()
+                        if 'by_occupation' not in locals(): by_occupation = {}
+                        if o not in by_occupation: by_occupation[o] = {"TP": 0, "FP": 0, "TN": 0, "FN": 0}
+                        if is_tp: by_occupation[o]["TP"] += 1
+                        if is_fp: by_occupation[o]["FP"] += 1
+                        if is_tn: by_occupation[o]["TN"] += 1
+                        if is_fn: by_occupation[o]["FN"] += 1
+                        
                     # Versioning
                     iv = sess.get('index_version')
                     if iv:
@@ -838,7 +866,8 @@ def get_metrics(admin: bool = Depends(verify_admin_key)):
             "questionnaire_metrics": calc_metrics(quest_tp, quest_fp, quest_tn, quest_fn),
             "subgroup_breakdown": {
                 "by_gender": clean_subgroup(by_gender),
-                "by_age_band": clean_subgroup(by_age)
+                "by_age_band": clean_subgroup(by_age),
+                "by_occupation": clean_subgroup(locals().get('by_occupation', {}))
             },
             "by_index_version": clean_subgroup(by_index),
             "by_decision_rule_version": clean_subgroup(by_rule)

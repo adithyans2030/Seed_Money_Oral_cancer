@@ -18,6 +18,7 @@ create table if not exists sessions (
     age                      integer,
     gender                   text,
     region                   text,
+    occupation               text,
 
     -- Questionnaire branch
     questionnaire_answers    jsonb,           -- raw {c1:"yes", s3:"no", ...} map

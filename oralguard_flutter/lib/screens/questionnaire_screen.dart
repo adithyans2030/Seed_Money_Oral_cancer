@@ -20,6 +20,7 @@ class QuestionnaireScreen extends StatefulWidget {
 class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
   late List<QuestionSection> _sections;
   RiskResult? _result;
+  String? _occupation;
   final _scrollController = ScrollController();
   final _resultKey = GlobalKey();
 
@@ -77,6 +78,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
         "age": 35, // default
         "gender": 1, // default male
         "region": "Unknown",
+        "occupation": _occupation,
         "q_tobacco": isYes('c1') ? 1 : 0,
         "q_alcohol": isYes('c4') ? 1 : 0,
         "q_hpv": isYes('c5') ? 1 : 0,
@@ -283,6 +285,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     setState(() {
       _sections = buildSections();
       _result = null;
+      _occupation = null;
     });
     _scrollController.animateTo(0,
         duration: const Duration(milliseconds: 500), curve: Curves.easeInOut);
@@ -345,7 +348,43 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
 
                 // Self-exam trigger
                 _SelfExamTrigger(),
-                const SizedBox(height: 6),
+                const SizedBox(height: 16),
+                
+                // Demographics
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: AppColors.white,
+                    border: Border.all(color: AppColors.border),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Text('Occupation (Optional):', style: GoogleFonts.sourceSans3(fontSize: 14 * fs)),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<String>(
+                            value: _occupation,
+                            hint: Text('Select...', style: TextStyle(color: AppColors.muted, fontSize: 13 * fs)),
+                            isExpanded: true,
+                            items: const [
+                              DropdownMenuItem(value: 'Manual Labour', child: Text('Manual Labour')),
+                              DropdownMenuItem(value: 'Office', child: Text('Office/Desk')),
+                              DropdownMenuItem(value: 'Other', child: Text('Other')),
+                            ],
+                            onChanged: (val) {
+                              setState(() {
+                                _occupation = val;
+                              });
+                            },
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
 
                 // Progress bar
                 LinearProgressIndicator(

@@ -46,8 +46,10 @@ Located in `oralguard_flutter/`
 ---
 
 ## Recent Updates & Bug Fixes
+- **Demographics & Subgroup Analysis**: Added Occupation field (Manual Labour, Office, Other) across the entire stack (React, Flutter, FastAPI, and Postgres). The `/metrics` endpoint and local `subgroup_analysis.py` scripts now calculate sensitivity and specificity by Occupational subgroups to ensure clinical fairness.
 - **Triage Fusion Engine**: Updated `/combined-risk` to robustly handle partial data gracefully. If a patient only uses one of the two tools, the system provides an immediate fallback recommendation instead of failing.
 - **XGBoost Feature Importance**: Local feature importance logic was implemented. The system now accurately lists the exact, specific risk factors that contributed most heavily to *your* personal risk profile.
+- **Decision Rule Tuning**: Implemented a k-NN (k=5) majority voting mechanism for image retrieval with an empirically tuned similarity threshold for improved specificity.
 - **API Reliability**: Fixed Supabase Postgres row tracking. Refactored React promises to prevent race conditions during triage calculation. Cleaned up error boundaries.
 
 ---

@@ -54,9 +54,9 @@ const CombinedRisk = () => {
   const getUrgencyClass = (urgency) => {
     if (!urgency) return 'muted';
     const lower = urgency.toLowerCase();
-    if (lower.includes('urgent') || lower.includes('high')) return 'high';
-    if (lower.includes('monitor') || lower.includes('moderate')) return 'moderate';
-    if (lower.includes('routine') || lower.includes('low')) return 'low';
+    if (lower.includes('red') || lower.includes('urgent') || lower.includes('high')) return 'high';
+    if (lower.includes('amber') || lower.includes('monitor') || lower.includes('moderate')) return 'moderate';
+    if (lower.includes('green') || lower.includes('routine') || lower.includes('low')) return 'low';
     return 'muted';
   };
 

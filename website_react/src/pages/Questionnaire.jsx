@@ -5,7 +5,7 @@ import './Questionnaire.css';
 export default function Questionnaire() {
   const [isExamOpen, setIsExamOpen] = useState(false);
   const [answers, setAnswers] = useState({});
-  const [demographics, setDemographics] = useState({ age: '', gender: '1', region: '' });
+  const [demographics, setDemographics] = useState({ age: '', gender: '1', region: '', occupation: '' });
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [resultData, setResultData] = useState(null);
   const [combinedRisk, setCombinedRisk] = useState(null);
@@ -23,7 +23,7 @@ export default function Questionnaire() {
 
   const resetForm = () => {
     setAnswers({});
-    setDemographics({ age: '', gender: '1', region: '' });
+    setDemographics({ age: '', gender: '1', region: '', occupation: '' });
     setResultData(null);
     setCombinedRisk(null);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -43,6 +43,7 @@ export default function Questionnaire() {
         age: parseInt(age),
         gender: parseInt(gender),
         region: region || 'Unknown',
+        occupation: demographics.occupation || null,
         q_tobacco: answers.c1 === 'yes' ? 1 : 0,
         q_alcohol: answers.c4 === 'yes' ? 1 : 0,
         q_hpv: answers.c5 === 'yes' ? 1 : 0,
@@ -274,6 +275,21 @@ export default function Questionnaire() {
               onChange={e => setDemographics({...demographics, region: e.target.value})}
               style={{ padding: '8px', border: '1px solid var(--border)', borderRadius: '4px', width: '140px', fontFamily: 'inherit' }}
             />
+          </div>
+        </div>
+        <div className="question-item">
+          <div className="q-text">Occupation (Optional):</div>
+          <div style={{ flexShrink: 0 }}>
+            <select 
+              value={demographics.occupation}
+              onChange={e => setDemographics({...demographics, occupation: e.target.value})}
+              style={{ padding: '8px', border: '1px solid var(--border)', borderRadius: '4px', width: '150px', fontFamily: 'inherit' }}
+            >
+              <option value="">Select...</option>
+              <option value="Manual Labour">Manual Labour</option>
+              <option value="Office">Office/Desk</option>
+              <option value="Other">Other</option>
+            </select>
           </div>
         </div>
       </div>

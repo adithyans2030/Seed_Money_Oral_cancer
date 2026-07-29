@@ -59,6 +59,7 @@ def generate_dummy_data():
     data = []
     genders = ['Male', 'Female', 'Other']
     ages = [25, 35, 45, 55, 65, 75]
+    occupations = ['Manual Labour', 'Office', 'Other']
     for i in range(200):
         actual = random.choice(['malignant', 'benign'])
         # Add some bias to age < 40 for testing degradation
@@ -73,6 +74,7 @@ def generate_dummy_data():
             "session": {
                 "age": age,
                 "gender": random.choice(genders),
+                "occupation": random.choice(occupations),
                 "cbir_predicted_label": pred
             },
             "label": {
@@ -90,7 +92,8 @@ def main():
         
     subgroups = {
         "Gender": {},
-        "Age Band": {}
+        "Age Band": {},
+        "Occupation": {}
     }
     
     # Initialize groups
@@ -118,6 +121,10 @@ def main():
         gender = sess.get("gender", "Unknown")
         if gender: gender = gender.capitalize()
         
+        occupation = sess.get("occupation", "Unknown")
+        if not occupation: occupation = "Unknown"
+        else: occupation = occupation.title()
+        
         def update_counts(counts_dict):
             if pred == "inconclusive":
                 counts_dict["inconclusive"] += 1
@@ -136,6 +143,10 @@ def main():
         if band not in subgroups["Age Band"]:
             subgroups["Age Band"][band] = {"tp": 0, "fp": 0, "tn": 0, "fn": 0, "inconclusive": 0}
         update_counts(subgroups["Age Band"][band])
+        
+        if occupation not in subgroups["Occupation"]:
+            subgroups["Occupation"][occupation] = {"tp": 0, "fp": 0, "tn": 0, "fn": 0, "inconclusive": 0}
+        update_counts(subgroups["Occupation"][occupation])
 
     # Analyze
     report = ["# Subgroup Analysis Report", ""]
