@@ -2,3 +2,5 @@
 Huggingface_sv/__pycache__/
 __pycache__/
 *.npz
+# The backend loads this at startup — it must be tracked/deployed.
+!Huggingface_sv/cbir_index_finetuned.npz

@@ -4,7 +4,7 @@ OralGuard FastAPI Backend
 Endpoints:
   GET  /                  — health check
   POST /search            — CBIR image search + decision rule + Supabase logging  (P3)
-  POST /predict-risk      — XGBoost questionnaire risk scoring + Supabase logging  (P4)
+  POST /predict-risk      — Evidence-based questionnaire risk scoring + Supabase logging  (P4)
   POST /combined-risk     — Fusion of both tools into a single triage output       (P5)
 """
 
@@ -15,20 +15,20 @@ import os
 import uuid
 from typing import Any, Dict, List, Optional, Literal
 
-import joblib
 import numpy as np
 import math
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile, Header, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from PIL import Image
+from PIL import Image, ImageOps
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 import torch
 import torch.nn as nn
 import torchvision.models as models
 from sklearn.metrics.pairwise import cosine_similarity
 from scripts.preprocess import preprocess_image
+from scripts.gradcam_utils import get_guided_gradcam, generate_gradcam_base64
 
 # ──────────────────────────────────────────────────────────
 # LOGGING
@@ -41,15 +41,22 @@ logger = logging.getLogger("oralguard")
 # ──────────────────────────────────────────────────────────
 load_dotenv(override=True)  # loads .env if present locally; env vars take precedence on HF Spaces
 
-INDEX_PATH     = "cbir_index.npz"
-RISK_MODEL_PATH = "risk_model.pkl"
+INDEX_PATH     = "cbir_index_finetuned.npz"
 IMG_SIZE       = 224
 TOP_K          = 6        # matches to return per class
-INCONCL_THRESH = 0.765    # Tuned threshold for MobileNetV2 cosine similarity mean of top k
+INCONCL_THRESH = 0.70    # Tuned threshold for MobileNetV2 cosine similarity mean of top k
+
+# Local image mount + public URL base — override via env vars for deployment
+# (defaults match this developer's local machine and are not valid elsewhere).
+IMAGES_DIR      = os.environ.get(
+    "IMAGES_DIR",
+    r"c:\Users\adith\OneDrive\Desktop\seed_money_project\Oral-Cancer-Detection---Seed-Money-Project\data\Oral Cancer\Oral Cancer Dataset",
+)
+PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "http://127.0.0.1:8000")
 
 # Validation Versions
-INDEX_VERSION = "index_v2_20250723"
-DECISION_RULE_VERSION = "rule_v1_k5_t0.08"
+INDEX_VERSION = "index_v5_metric_finetuned_823img"
+DECISION_RULE_VERSION = "rule_v3_metric_k5_t0.70"  # must track INCONCL_THRESH above
 
 # ──────────────────────────────────────────────────────────
 # SUPABASE CLIENT (Priority 1)
@@ -91,14 +98,16 @@ def log_to_supabase(table: str, payload: Dict[str, Any]) -> Optional[str]:
 
 
 def update_supabase(table: str, row_id: str, payload: Dict[str, Any]) -> bool:
-    """Update an existing row. Returns True on success. Never raises."""
+    """Update or insert an existing row (upsert). Returns True on success. Never raises."""
     if supabase_client is None:
         return False
     try:
-        supabase_client.table(table).update(payload).eq("id", row_id).execute()
+        # Include id in payload for upsert
+        upsert_payload = {"id": row_id, **payload}
+        supabase_client.table(table).upsert(upsert_payload).execute()
         return True
     except Exception as e:
-        logger.error(f"Supabase update on '{table}' id={row_id} failed: {e}")
+        logger.error(f"Supabase upsert on '{table}' id={row_id} failed: {e}")
     return False
 
 
@@ -119,33 +128,30 @@ logger.info(f"Loaded {len(index['paths'])} indexed images from {INDEX_PATH}.")
 # ──────────────────────────────────────────────────────────
 # LOAD MOBILENETV2 FEATURE EXTRACTOR (runs once at startup)
 # ──────────────────────────────────────────────────────────
-device = torch.device("cpu")
-
+# Setup CBIR Model (MobileNetV2, L2-normalised features) 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 backbone = models.mobilenet_v2(weights=models.MobileNet_V2_Weights.IMAGENET1K_V1)
-model = nn.Sequential(
-    backbone.features,
-    nn.AdaptiveAvgPool2d((1, 1)),
-    nn.Flatten(),
-).to(device)
+
+finetuned_path = "models/finetuned_mobilenetv2.pth"
+if not os.path.exists(finetuned_path):
+    finetuned_path = "../models/finetuned_mobilenetv2.pth"  # local monorepo dev layout
+if os.path.exists(finetuned_path):
+    # Reconstruct the classification head temporarily to match the fine-tuned state_dict
+    num_ftrs = backbone.classifier[1].in_features
+    backbone.classifier = nn.Sequential(
+        nn.Dropout(p=0.5),
+        nn.Linear(num_ftrs, 2)
+    )
+    backbone.load_state_dict(torch.load(finetuned_path, map_location=device))
+    logger.info(f"Loaded fine-tuned model from {finetuned_path}")
+else:
+    logger.info("Fine-tuned model not found, falling back to raw ImageNet features.")
+
+backbone.classifier = nn.Identity()  # strip classification head
+model = backbone.to(device)
 model.eval()
 
 logger.info("MobileNetV2 feature extractor loaded.")
-
-# ──────────────────────────────────────────────────────────
-# LOAD XGBOOST RISK MODEL (runs once at startup — optional)
-# ──────────────────────────────────────────────────────────
-risk_model = None
-if os.path.exists(RISK_MODEL_PATH):
-    try:
-        risk_model = joblib.load(RISK_MODEL_PATH)
-        logger.info(f"XGBoost risk model loaded from {RISK_MODEL_PATH}.")
-    except Exception as e:
-        logger.error(f"Failed to load risk model: {e}. /predict-risk will be unavailable.")
-else:
-    logger.warning(
-        f"{RISK_MODEL_PATH} not found. "
-        "Run scripts/train_risk_model.py locally and commit the output file."
-    )
 
 # ──────────────────────────────────────────────────────────
 # HELPERS
@@ -154,6 +160,10 @@ else:
 @torch.no_grad()
 def extract_embedding(image: Image.Image) -> np.ndarray:
     """Extract L2-normalised MobileNetV2 feature vector."""
+    # TODO: Critical Inference Requirement
+    # Ensure preprocess_image() applies CLAHE in the EXACT same order as the training pipeline:
+    # Order MUST be: Resize (224x224) -> CLAHE normalization. NOT CLAHE -> resize.
+    # Otherwise, cosine similarity scores will be systematically wrong.
     tensor = preprocess_image(image)
     if tensor is None:
         raise ValueError("Image preprocessing failed or resolution too low.")
@@ -243,6 +253,153 @@ def score_to_label(score: float) -> str:
     if score >= 0.35:
         return "Moderate"
     return "Low"
+
+
+# ──────────────────────────────────────────────────────────
+# RULE-BASED QUESTIONNAIRE RISK SCORING
+#
+# Replaces an XGBoost model previously trained on a public Kaggle CSV whose
+# risk-factor columns were statistically independent of its diagnosis label
+# (verified: correlation ~0 and p>0.1 for every one of the 15 features across
+# 85k rows) — i.e. the "model" had no real signal to learn. This scores
+# answers directly against published oral-cancer epidemiology instead.
+#
+# Two tiers, weighted very differently on purpose:
+#   - CAUSE factors are background/lifestyle exposures — they raise long-run
+#     risk but are not evidence of disease, so alone they cap out around
+#     "Moderate" even at their worst combination.
+#   - SYMPTOM factors describe a current physical finding (a non-healing
+#     sore, a patch that won't wipe off, etc.) — these resemble oral
+#     cancer's actual clinical presentation, so a single one alone can
+#     already reach "Moderate", and two together reach "High".
+#
+# Weights are directional, sourced from general oncology literature (e.g.
+# tobacco/betel quid/tobacco+alcohol synergy carrying the largest published
+# relative-risk increases). They are a starting point, not a clinical
+# guarantee — a clinician should review the exact point values before this
+# is treated as final.
+# ──────────────────────────────────────────────────────────
+
+CAUSE_WEIGHTS: Dict[str, int] = {
+    "tobacco_use":            16,
+    "betel_quid_use":         15,
+    "alcohol_consumption":    11,
+    "hpv_infection":          10,
+    "compromised_immune":      8,
+    "family_history":          5,
+    "chronic_sun_exposure":    3,
+    "poor_oral_hygiene":       2,
+}
+DIET_WEIGHTS = {0: 3, 1: 1, 2: 0}   # diet: 0=Low, 1=Medium, 2=High fruit/veg intake
+SYMPTOM_WEIGHTS: Dict[str, int] = {
+    # Each weight exceeds RISK_SCALE * 0.35 alone, so any single reported
+    # symptom reliably reaches at least "Moderate" regardless of age/diet —
+    # a screening tool should never let one red-flag symptom alone read as "Low".
+    "oral_lesions":           42,   # non-healing sore/ulcer/lump — classic presenting sign
+    "white_red_patches":      39,   # leukoplakia/erythroplakia are themselves potentially malignant disorders
+    "unexplained_bleeding":   37,   # "unexplained" already excludes the common benign (brushing/flossing) cause
+    "difficulty_swallowing":  36,
+}
+MIN_NOTABLE_CONTRIBUTION = 5   # points below this are too marginal to name as a "top contributing factor"
+TOBACCO_ALCOHOL_SYNERGY = 8   # well-documented multiplicative (not additive) combined effect
+TOBACCO_BETEL_SYNERGY   = 6   # common combined smoking + chewing use pattern
+RISK_SCALE = 100.0            # denominator the accumulated points are normalised against
+
+DISPLAY_NAMES = {
+    "age": "age", "gender": "gender", "tobacco_use": "tobacco use",
+    "alcohol_consumption": "alcohol consumption", "hpv_infection": "HPV infection",
+    "betel_quid_use": "betel quid use", "chronic_sun_exposure": "chronic sun exposure",
+    "poor_oral_hygiene": "poor oral hygiene", "diet": "diet",
+    "family_history": "family history of cancer", "compromised_immune": "compromised immune system",
+    "oral_lesions": "a non-healing oral sore/lesion", "unexplained_bleeding": "unexplained bleeding",
+    "difficulty_swallowing": "difficulty swallowing", "white_red_patches": "white or red patches",
+}
+
+
+def _age_points(age: int) -> int:
+    if age >= 60:
+        return 8
+    if age >= 45:
+        return 5
+    if age >= 30:
+        return 2
+    return 0
+
+
+def compute_rule_based_risk(ans: "RiskAnswers") -> Dict[str, Any]:
+    """
+    Additive, literature-weighted risk score. Returns the exact same shape
+    the old XGBoost/SHAP path returned: risk_score, risk_label, top_features,
+    explanation_text — so no downstream consumer needs to change.
+    """
+    contributions: List[tuple] = []  # (feature_name, points)
+
+    binary_causes = {
+        "tobacco_use":         ans.tobacco_use,
+        "betel_quid_use":      ans.betel_quid_use,
+        "alcohol_consumption": ans.alcohol_consumption,
+        "hpv_infection":       ans.hpv_infection,
+        "compromised_immune":  ans.compromised_immune,
+        "family_history":      ans.family_history,
+        "chronic_sun_exposure": ans.chronic_sun_exposure,
+        "poor_oral_hygiene":   ans.poor_oral_hygiene,
+    }
+    for name, present in binary_causes.items():
+        if present:
+            contributions.append((name, CAUSE_WEIGHTS[name]))
+
+    diet_pts = DIET_WEIGHTS.get(ans.diet, 1)
+    if diet_pts > 0:
+        contributions.append(("diet", diet_pts))
+
+    symptoms = {
+        "oral_lesions":          ans.oral_lesions,
+        "white_red_patches":     ans.white_red_patches,
+        "unexplained_bleeding":  ans.unexplained_bleeding,
+        "difficulty_swallowing": ans.difficulty_swallowing,
+    }
+    for name, present in symptoms.items():
+        if present:
+            contributions.append((name, SYMPTOM_WEIGHTS[name]))
+
+    if ans.tobacco_use and ans.alcohol_consumption:
+        contributions.append(("tobacco_alcohol_combined", TOBACCO_ALCOHOL_SYNERGY))
+    if ans.tobacco_use and ans.betel_quid_use:
+        contributions.append(("tobacco_betel_combined", TOBACCO_BETEL_SYNERGY))
+
+    age_pts = _age_points(ans.age)
+    if age_pts > 0:
+        contributions.append(("age", age_pts))
+
+    total_points = sum(pts for _, pts in contributions)
+    risk_score = min(total_points / RISK_SCALE, 1.0)
+    risk_label = score_to_label(risk_score)
+
+    # Rank contributors by actual point weight — exact, not approximate.
+    # Symptoms naturally surface first since they're weighted higher.
+    ranked = sorted(contributions, key=lambda x: x[1], reverse=True)
+    excluded = ("age", "gender", "tobacco_alcohol_combined", "tobacco_betel_combined")
+    named = [n for n, pts in ranked if n not in excluded and pts >= MIN_NOTABLE_CONTRIBUTION]
+    top_features = named[:2]
+
+    if len(top_features) == 2:
+        explanation_text = (
+            f"Your {DISPLAY_NAMES.get(top_features[0], top_features[0])} and "
+            f"{DISPLAY_NAMES.get(top_features[1], top_features[1])} are the top contributors to your risk score."
+        )
+    elif len(top_features) == 1:
+        explanation_text = (
+            f"Your {DISPLAY_NAMES.get(top_features[0], top_features[0])} is the primary contributor to your risk score."
+        )
+    else:
+        explanation_text = "No significant risk factors or symptoms were identified in your responses."
+
+    return {
+        "risk_score":       risk_score,
+        "risk_label":       risk_label,
+        "top_features":     top_features,
+        "explanation_text": explanation_text,
+    }
 
 
 # ──────────────────────────────────────────────────────────
@@ -387,7 +544,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.mount("/images", StaticFiles(directory=r"c:\Users\adith\OneDrive\Desktop\seed_money_project\Oral Cancer\Oral Cancer Dataset"), name="images")
+if os.path.isdir(IMAGES_DIR):
+    app.mount("/images", StaticFiles(directory=IMAGES_DIR), name="images")
+else:
+    logger.warning(
+        f"IMAGES_DIR '{IMAGES_DIR}' not found — /images static mount disabled. "
+        "Set the IMAGES_DIR env var to enable local image serving."
+    )
 
 
 # ──────────────────────────────────────────────────────────
@@ -399,7 +562,7 @@ def root():
         "message":    "OralGuard API is running.",
         "version":    "2.0.0",
         "index_size": len(index["paths"]),
-        "risk_model": "loaded" if risk_model is not None else "unavailable",
+        "risk_scoring": "rule-based",
         "supabase":   "connected" if supabase_client is not None else "not configured",
     }
 
@@ -437,7 +600,12 @@ async def search(
 
         # ── Decode + strip EXIF ───────────────────────────
         try:
-            img = Image.open(io.BytesIO(raw_bytes)).convert("RGB")
+            img = Image.open(io.BytesIO(raw_bytes))
+            # Phone cameras commonly store an EXIF orientation tag instead of
+            # rotating pixels — apply it before discarding EXIF, or sideways/
+            # upside-down photos get matched in the wrong orientation.
+            img = ImageOps.exif_transpose(img)
+            img = img.convert("RGB")
             img = strip_exif(img)
         except Exception:
             raise HTTPException(
@@ -465,21 +633,19 @@ async def search(
             parts         = original_path.replace("\\", "/").split("/")
             class_folder  = parts[-2]
             filename      = parts[-1]
-            label_raw     = str(index["labels"][idx_i])
-            label         = "malignant" if label_raw == "1" else "benign"
+            label_raw     = str(index["labels"][idx_i]).lower()
+            label         = "malignant" if label_raw in ["1", "malignant"] else "benign"
 
-            if original_path.startswith("new_data/"):
-                local_folder = "CANCER" if label == "malignant" else "NON CANCER"
-                public_url = f"http://127.0.0.1:8000/images/{local_folder}/{filename}"
-            else:
-                public_url = (
-                    f"https://huggingface.co/datasets/GPrabhanjana/oral-images"
-                    f"/resolve/main/{class_folder}/{filename}"
-                )
+            # Mount directory is 'Oral Cancer Dataset' which has 'CANCER' and 'NON CANCER'
+            # original_path might point to 'Oral Cancer Dataset Processed' or 'Oral Cancer Dataset'
+            # Let's just construct the local URL directly since we know the folder structure
+            local_folder = "CANCER" if label == "malignant" else "NON CANCER"
+            public_url = f"{PUBLIC_BASE_URL}/images/{local_folder}/{filename}"
             result = {
                 "image_path": public_url,
                 "label":      label,
                 "similarity": float(sim),
+                "index_i":    idx_i
             }
 
             if label == "benign":
@@ -498,6 +664,39 @@ async def search(
 
         # ── Decision rule (Priority 3) ────────────────────
         decision = compute_decision(benign_results, malignant_results)
+
+        # ── Grad-CAM Explainability (Priority 8) ──────────
+        # Only compute/show this when the decision actually IS "Malignant
+        # pattern" — the heatmap explains similarity to the top malignant
+        # match specifically ("why this looks concerning"), so surfacing it
+        # on a Benign or Inconclusive result would show a hot malignant-
+        # similarity map alongside a reassuring label, which reads as a
+        # contradiction rather than an explanation.
+        gradcam_base64 = None
+        if malignant_results and decision["label"] == "Malignant pattern":
+            best_mal = malignant_results[0]
+            target_emb = index["embeddings"][best_mal["index_i"]]
+            tensor_img = preprocess_image(img)
+            if tensor_img is not None:
+                tensor_img = tensor_img.unsqueeze(0).to(device)
+                # Only the last 3 blocks (features[16:19]) were ever unfrozen
+                # during fine-tuning — every earlier layer, including any with
+                # higher spatial resolution, still holds untouched generic
+                # ImageNet weights with no oral-lesion-specific signal. Using
+                # one of those for Grad-CAM (tried features[13]) produces a
+                # sharper-looking but meaningless map — confirmed by testing,
+                # the hotspot moved onto background/teeth instead of the lesion.
+                # features[-1] is coarse (7x7) but is the only layer that
+                # actually reflects what the model was trained to recognize.
+                target_layer = backbone.features[-1]
+                with torch.enable_grad():
+                    heatmap = get_guided_gradcam(backbone, target_layer, tensor_img, target_emb)
+                if heatmap is not None:
+                    gradcam_base64 = generate_gradcam_base64(img, heatmap)
+
+        # Cleanup temp index
+        for r in benign_results + malignant_results:
+            r.pop("index_i", None)
         
         payload = {
             "image_hash":         image_hash,
@@ -522,8 +721,9 @@ async def search(
                 "benign":    benign_results,
                 "malignant": malignant_results,
             },
-            "decision":   decision,
-            "session_id": session_id,
+            "decision":       decision,
+            "gradcam_base64": gradcam_base64,
+            "session_id":     session_id,
         }
 
     except HTTPException:
@@ -539,73 +739,20 @@ async def search(
 @app.post("/predict-risk")
 async def predict_risk(request: PredictRiskRequest):
     """
-    Run XGBoost oral cancer risk prediction from questionnaire answers.
+    Score oral cancer risk from questionnaire answers using an evidence-based
+    weighted rule engine (see compute_rule_based_risk for rationale).
 
     Request body: { "answers": { ...15 features... } }
     Returns: { risk_label, risk_score, top_features, session_id }
     """
-    if risk_model is None:
-        raise HTTPException(
-            status_code=503,
-            detail=(
-                "Risk prediction model is not available. "
-                "Please ensure risk_model.pkl is present in the container."
-            ),
-        )
-
     try:
         ans = request.answers
+        result = compute_rule_based_risk(ans)
+        risk_score = result["risk_score"]
+        risk_label = result["risk_label"]
+        top_features = result["top_features"]
+        explanation_text = result["explanation_text"]
 
-        # ── Build feature vector (must match training column order) ──
-        # Order: age, gender, tobacco_use, alcohol_consumption, hpv_infection,
-        #        betel_quid_use, chronic_sun_exposure, poor_oral_hygiene, diet,
-        #        family_history, compromised_immune, oral_lesions,
-        #        unexplained_bleeding, difficulty_swallowing, white_red_patches
-        feature_names = [
-            "age", "gender", "tobacco_use", "alcohol_consumption",
-            "hpv_infection", "betel_quid_use", "chronic_sun_exposure",
-            "poor_oral_hygiene", "diet", "family_history",
-            "compromised_immune", "oral_lesions", "unexplained_bleeding",
-            "difficulty_swallowing", "white_red_patches",
-        ]
-        feature_vector = np.array([[
-            ans.age,
-            ans.gender,
-            ans.tobacco_use,
-            ans.alcohol_consumption,
-            ans.hpv_infection,
-            ans.betel_quid_use,
-            ans.chronic_sun_exposure,
-            ans.poor_oral_hygiene,
-            ans.diet,
-            ans.family_history,
-            ans.compromised_immune,
-            ans.oral_lesions,
-            ans.unexplained_bleeding,
-            ans.difficulty_swallowing,
-            ans.white_red_patches,
-        ]], dtype=float)
-
-        # ── Inference ─────────────────────────────────────
-        risk_score = float(risk_model.predict_proba(feature_vector)[0][1])
-        risk_label = score_to_label(risk_score)
-
-        # ── Top feature importances ───────────────────────
-        global_importances = risk_model.feature_importances_
-        # Only consider risk factors the user actually has (value > 0)
-        # Age and Gender are always > 0 but we generally want to highlight modifiable risks
-        user_features_present = feature_vector[0] > 0
-        local_importances = global_importances * user_features_present
-
-        ranked = sorted(zip(feature_names, local_importances), key=lambda x: x[1], reverse=True)
-        
-        # Filter out features with 0 local importance, but don't show Age/Gender as primary actionable risks unless needed
-        top_features = [name for name, imp in ranked if imp > 0 and name not in ("age", "gender")][:3]
-        if not top_features:
-            top_features = [name for name, imp in ranked if imp > 0][:3]
-        if not top_features:
-            top_features = ["age"]
-        
         payload = {
             "age":                      ans.age,
             "gender":                   "Male" if ans.gender == 1 else "Female/Other",
@@ -624,10 +771,11 @@ async def predict_risk(request: PredictRiskRequest):
             session_id = log_to_supabase("sessions", payload) or str(uuid.uuid4())
 
         return {
-            "risk_label":   risk_label,
-            "risk_score":   round(risk_score, 4),
-            "top_features": top_features,
-            "session_id":   session_id,
+            "risk_label":       risk_label,
+            "risk_score":       round(risk_score, 4),
+            "top_features":     top_features,
+            "explanation_text": explanation_text,
+            "session_id":       session_id,
         }
 
     except HTTPException:
@@ -702,7 +850,9 @@ async def combined_risk(request: CombinedRiskRequest):
 
 
 def verify_admin_key(x_admin_key: str = Header(...)):
-    expected = os.environ.get("X_ADMIN_KEY", "oralguard_admin_dev")
+    expected = os.environ.get("X_ADMIN_KEY")
+    if not expected:
+        raise HTTPException(status_code=503, detail="Admin key not configured on server.")
     if x_admin_key != expected:
         raise HTTPException(status_code=403, detail="Invalid admin key.")
     return True
@@ -733,9 +883,10 @@ def get_metrics(admin: bool = Depends(verify_admin_key)):
         quest_tp = quest_fp = quest_tn = quest_fn = 0
         
         by_gender = {}
-        by_age = {"<40": {"TP": 0, "FP": 0, "TN": 0, "FN": 0}, 
-                  "40-60": {"TP": 0, "FP": 0, "TN": 0, "FN": 0}, 
+        by_age = {"<40": {"TP": 0, "FP": 0, "TN": 0, "FN": 0},
+                  "40-60": {"TP": 0, "FP": 0, "TN": 0, "FN": 0},
                   ">60": {"TP": 0, "FP": 0, "TN": 0, "FN": 0}}
+        by_occupation = {}
         by_index = {}
         by_rule = {}
         
@@ -780,48 +931,49 @@ def get_metrics(admin: bool = Depends(verify_admin_key)):
                     age = sess.get('age')
                     if age is not None:
                         band = "<40" if age < 40 else (">60" if age > 60 else "40-60")
-                        if is_tp: by_age[band]["TP"] += 1
-                        if is_fp: by_age[band]["FP"] += 1
-                        if is_tn: by_age[band]["TN"] += 1
-                        if is_fn: by_age[band]["FN"] += 1
-                        
+                        if is_q_tp: by_age[band]["TP"] += 1
+                        if is_q_fp: by_age[band]["FP"] += 1
+                        if is_q_tn: by_age[band]["TN"] += 1
+                        if is_q_fn: by_age[band]["FN"] += 1
+
                     # Subgroup Gender
                     gender = sess.get('gender')
                     if gender:
-                        g = gender.capitalize()
+                        g = gender.strip().capitalize()
+                        if "/" in g:
+                            g = "/".join(part.capitalize() for part in g.split("/"))
                         if g not in by_gender: by_gender[g] = {"TP": 0, "FP": 0, "TN": 0, "FN": 0}
-                        if is_tp: by_gender[g]["TP"] += 1
-                        if is_fp: by_gender[g]["FP"] += 1
-                        if is_tn: by_gender[g]["TN"] += 1
-                        if is_fn: by_gender[g]["FN"] += 1
-                        
+                        if is_q_tp: by_gender[g]["TP"] += 1
+                        if is_q_fp: by_gender[g]["FP"] += 1
+                        if is_q_tn: by_gender[g]["TN"] += 1
+                        if is_q_fn: by_gender[g]["FN"] += 1
+
                     # Subgroup Occupation
                     occupation = sess.get('occupation')
                     if occupation:
                         o = occupation.title()
-                        if 'by_occupation' not in locals(): by_occupation = {}
                         if o not in by_occupation: by_occupation[o] = {"TP": 0, "FP": 0, "TN": 0, "FN": 0}
-                        if is_tp: by_occupation[o]["TP"] += 1
-                        if is_fp: by_occupation[o]["FP"] += 1
-                        if is_tn: by_occupation[o]["TN"] += 1
-                        if is_fn: by_occupation[o]["FN"] += 1
-                        
+                        if is_q_tp: by_occupation[o]["TP"] += 1
+                        if is_q_fp: by_occupation[o]["FP"] += 1
+                        if is_q_tn: by_occupation[o]["TN"] += 1
+                        if is_q_fn: by_occupation[o]["FN"] += 1
+
                     # Versioning
                     iv = sess.get('index_version')
                     if iv:
                         if iv not in by_index: by_index[iv] = {"TP": 0, "FP": 0, "TN": 0, "FN": 0}
-                        if is_tp: by_index[iv]["TP"] += 1
-                        if is_fp: by_index[iv]["FP"] += 1
-                        if is_tn: by_index[iv]["TN"] += 1
-                        if is_fn: by_index[iv]["FN"] += 1
-                        
+                        if is_q_tp: by_index[iv]["TP"] += 1
+                        if is_q_fp: by_index[iv]["FP"] += 1
+                        if is_q_tn: by_index[iv]["TN"] += 1
+                        if is_q_fn: by_index[iv]["FN"] += 1
+
                     drv = sess.get('decision_rule_version')
                     if drv:
                         if drv not in by_rule: by_rule[drv] = {"TP": 0, "FP": 0, "TN": 0, "FN": 0}
-                        if is_tp: by_rule[drv]["TP"] += 1
-                        if is_fp: by_rule[drv]["FP"] += 1
-                        if is_tn: by_rule[drv]["TN"] += 1
-                        if is_fn: by_rule[drv]["FN"] += 1
+                        if is_q_tp: by_rule[drv]["TP"] += 1
+                        if is_q_fp: by_rule[drv]["FP"] += 1
+                        if is_q_tn: by_rule[drv]["TN"] += 1
+                        if is_q_fn: by_rule[drv]["FN"] += 1
                         
         def calc_metrics(tp, fp, tn, fn):
             sens = tp / (tp + fn) if (tp + fn) > 0 else 0.0
@@ -867,7 +1019,7 @@ def get_metrics(admin: bool = Depends(verify_admin_key)):
             "subgroup_breakdown": {
                 "by_gender": clean_subgroup(by_gender),
                 "by_age_band": clean_subgroup(by_age),
-                "by_occupation": clean_subgroup(locals().get('by_occupation', {}))
+                "by_occupation": clean_subgroup(by_occupation)
             },
             "by_index_version": clean_subgroup(by_index),
             "by_decision_rule_version": clean_subgroup(by_rule)

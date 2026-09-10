@@ -3,6 +3,8 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme.dart';
 import '../widgets/nav_bar.dart';
+import '../l10n/app_localizations.dart';
+import '../main.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -47,9 +49,33 @@ class _HomeScreenState extends State<HomeScreen> {
       body: SingleChildScrollView(
         child: Column(
           children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  const Icon(Icons.language, size: 18, color: AppColors.muted),
+                  const SizedBox(width: 8),
+                  DropdownButton<String>(
+                    value: appLocale.value.languageCode,
+                    underline: const SizedBox(),
+                    items: const [
+                      DropdownMenuItem(value: 'en', child: Text('English')),
+                      DropdownMenuItem(value: 'hi', child: Text('हिंदी')),
+                      DropdownMenuItem(value: 'kn', child: Text('ಕನ್ನಡ')),
+                    ],
+                    onChanged: (val) {
+                      if (val != null) {
+                        appLocale.value = Locale(val);
+                      }
+                    },
+                  ),
+                ],
+              ),
+            ),
             SwitchListTile(
-              title: const Text('Clinician Mode'),
-              subtitle: const Text('Enable to log ground-truth clinical diagnoses'),
+              title: Text(AppLocalizations.of(context).get('clinician_mode')),
+              subtitle: Text(AppLocalizations.of(context).get('clinician_desc')),
               value: _isClinician,
               onChanged: _toggleMode,
               activeColor: AppColors.rust,
@@ -113,7 +139,7 @@ class _HeroText extends StatelessWidget {
             borderRadius: BorderRadius.circular(20),
           ),
           child: Text(
-            '● ORAL CANCER SCREENING PLATFORM',
+            AppLocalizations.of(context).get('hero_tag'),
             style: GoogleFonts.sourceSans3(
               fontSize: 9 * fs,
               letterSpacing: 2.5,
@@ -127,7 +153,7 @@ class _HeroText extends StatelessWidget {
           text: TextSpan(
             children: [
               TextSpan(
-                text: 'Detect early.\n',
+                text: AppLocalizations.of(context).get('hero_t1'),
                 style: GoogleFonts.playfairDisplay(
                   fontSize: 34 * fs,
                   color: const Color(0xFFF0ECE6),
@@ -135,7 +161,7 @@ class _HeroText extends StatelessWidget {
                 ),
               ),
               TextSpan(
-                text: 'Act sooner.\n',
+                text: AppLocalizations.of(context).get('hero_t2'),
                 style: GoogleFonts.playfairDisplay(
                   fontSize: 34 * fs,
                   color: AppColors.rustMid,
@@ -144,7 +170,7 @@ class _HeroText extends StatelessWidget {
                 ),
               ),
               TextSpan(
-                text: 'Survive.',
+                text: AppLocalizations.of(context).get('hero_t3'),
                 style: GoogleFonts.playfairDisplay(
                   fontSize: 34 * fs,
                   color: const Color(0xFFF0ECE6),
@@ -156,7 +182,7 @@ class _HeroText extends StatelessWidget {
         ),
         const SizedBox(height: 16),
         Text(
-          'Oral cancer is highly treatable when caught early. Use our tools to check your risk, review your symptoms, and compare lesion images against clinical cases.',
+          AppLocalizations.of(context).get('hero_desc'),
           style: GoogleFonts.sourceSans3(
             fontSize: 14 * fs,
             color: const Color(0xFFA09890),
@@ -166,9 +192,9 @@ class _HeroText extends StatelessWidget {
         const SizedBox(height: 24),
         Row(
           children: [
-            _StatItem(number: '84%', label: '5-yr survival\nat Stage I'),
+            _StatItem(number: AppLocalizations.of(context).get('stat_5_1'), label: AppLocalizations.of(context).get('stat_5_1_lbl')),
             const SizedBox(width: 36),
-            _StatItem(number: '20%', label: '5-yr survival\nat Stage IV'),
+            _StatItem(number: AppLocalizations.of(context).get('stat_5_4'), label: AppLocalizations.of(context).get('stat_5_4_lbl')),
           ],
         ),
       ],
@@ -200,37 +226,38 @@ class _StatItem extends StatelessWidget {
 class _HeroCards extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     return Column(
       children: [
         _HeroCard(
           icon: '🔍',
           iconBg: AppColors.rust.withOpacity(0.2),
-          title: 'Self-Exam Guide',
-          desc: 'Check your own mouth in 5 minutes',
+          title: loc.get('self_exam'),
+          desc: loc.get('self_exam_desc'),
           onTap: () => context.go('/self-exam'),
         ),
         const SizedBox(height: 10),
         _HeroCard(
           icon: '📋',
           iconBg: AppColors.sage.withOpacity(0.2),
-          title: 'Risk Screener',
-          desc: '18 questions — get a personalised risk result',
+          title: loc.get('screener'),
+          desc: loc.get('screener_desc'),
           onTap: () => context.go('/screener'),
         ),
         const SizedBox(height: 10),
         _HeroCard(
           icon: '📷',
           iconBg: AppColors.rust.withOpacity(0.2),
-          title: 'Image Matcher',
-          desc: 'Compare a lesion photo to our clinical database',
+          title: loc.get('matcher'),
+          desc: loc.get('matcher_desc'),
           onTap: () => context.go('/matcher'),
         ),
         const SizedBox(height: 10),
         _HeroCard(
           icon: '🔬',
           iconBg: AppColors.rustMid.withOpacity(0.2),
-          title: 'Combined Triage',
-          desc: 'Fuse questionnaire & image matcher for a final risk score',
+          title: loc.get('combined'),
+          desc: loc.get('combined_desc'),
           onTap: () => context.go('/combined-risk'),
         ),
       ],
@@ -331,41 +358,42 @@ class _FeaturesSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final isWide = Bp.isWide(context);
     final hPad = Bp.isMobile(context) ? 16.0 : 24.0;
+    final loc = AppLocalizations.of(context);
 
     final cards = [
       _FeatureData(
-        badge: 'START HERE',
-        title: 'Self-Exam Guide',
-        desc: 'A step-by-step visual guide to checking your own mouth at home. Know what to look for — lips, tongue, cheeks, floor of mouth, and throat.',
-        btnLabel: 'Open Guide →',
+        badge: loc.get('start_here'),
+        title: loc.get('self_exam'),
+        desc: loc.get('hiw_1_d'),
+        btnLabel: loc.get('open_guide'),
         onTap: () => context.go('/self-exam'),
       ),
       _FeatureData(
         badge: 'RISK ASSESSMENT',
-        title: 'Risk Screener',
-        desc: 'A clinical questionnaire covering tobacco, alcohol, HPV, and 9 key symptoms. Intelligent follow-up questions help differentiate oral cancer from benign conditions.',
-        btnLabel: 'Start Screener →',
+        title: loc.get('screener'),
+        desc: loc.get('hiw_2_d'),
+        btnLabel: loc.get('start_screener'),
         onTap: () => context.go('/screener'),
       ),
       _FeatureData(
         badge: 'VISUAL COMPARISON',
-        title: 'Image Matcher',
-        desc: 'Upload a photo of an oral lesion. AI finds the most visually similar benign and malignant cases from our indexed clinical image database.',
-        btnLabel: 'Open Matcher →',
+        title: loc.get('matcher'),
+        desc: loc.get('hiw_3_d'),
+        btnLabel: loc.get('open_matcher'),
         onTap: () => context.go('/matcher'),
       ),
       _FeatureData(
         badge: 'SYNTHESIS',
-        title: 'Combined Triage',
-        desc: 'Have you completed both the screener and image matcher? View your unified, AI-fused clinical risk assessment.',
-        btnLabel: 'View Synthesis →',
+        title: loc.get('combined'),
+        desc: loc.get('combined_desc'),
+        btnLabel: loc.get('view_synthesis'),
         onTap: () => context.go('/combined-risk'),
         badgeColor: AppColors.rustMid,
       ),
       _FeatureData(
         badge: 'ALWAYS REMEMBER',
-        title: 'See a Clinician',
-        desc: 'These tools help you become aware — they do not diagnose. Any persistent or unexplained change lasting over 3 weeks should be evaluated by a dentist or specialist.',
+        title: loc.get('hiw_4_t'),
+        desc: loc.get('hiw_4_d'),
         btnLabel: null,
         onTap: null,
         badgeColor: AppColors.sage,
@@ -496,15 +524,12 @@ class _FeatureCardState extends State<_FeatureCard> {
 class _HowItWorksSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final steps = [
-      ('01', 'Learn to self-examine',
-          'Follow the illustrated guide to inspect your mouth systematically.'),
-      ('02', 'Answer the screener',
-          'Our questionnaire weighs risk factors and symptoms to assess urgency.'),
-      ('03', 'Match a lesion photo',
-          'Upload an image and our AI finds the most visually similar cases.'),
-      ('04', 'See a clinician',
-          "These tools inform — they don't diagnose. Always consult a dentist or specialist."),
+      ('01', loc.get('hiw_1_t'), loc.get('hiw_1_d')),
+      ('02', loc.get('hiw_2_t'), loc.get('hiw_2_d')),
+      ('03', loc.get('hiw_3_t'), loc.get('hiw_3_d')),
+      ('04', loc.get('hiw_4_t'), loc.get('hiw_4_d')),
     ];
 
     final isWide = Bp.isWide(context);
@@ -519,14 +544,14 @@ class _HowItWorksSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('HOW IT WORKS',
+          Text(loc.get('how_it_works'),
               style: GoogleFonts.sourceSans3(
                   fontSize: 9 * fs,
                   letterSpacing: 3.5,
                   color: AppColors.rust,
                   fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
-          Text('Three tools, one platform',
+          Text(loc.get('three_tools'),
               style: GoogleFonts.playfairDisplay(fontSize: 24 * fs)),
           const SizedBox(height: 24),
           isWide

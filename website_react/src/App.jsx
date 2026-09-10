@@ -5,6 +5,7 @@ import Home from './pages/Home';
 import Questionnaire from './pages/Questionnaire';
 import Matcher from './pages/Matcher';
 import CombinedRisk from './pages/CombinedRisk';
+import AdminDashboard from './pages/AdminDashboard';
 
 function App() {
   return (
@@ -15,6 +16,7 @@ function App() {
         <Route path="/questionnaire" element={<Questionnaire />} />
         <Route path="/matcher" element={<Matcher />} />
         <Route path="/combined-risk" element={<CombinedRisk />} />
+        <Route path="/admin" element={<AdminDashboard />} />
       </Routes>
       <Footer />
     </Router>

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { API_BASE_URL } from '../config';
 import './CombinedRisk.css';
 
 const CombinedRisk = () => {
@@ -22,7 +23,7 @@ const CombinedRisk = () => {
           return;
         }
 
-        const res = await fetch('http://127.0.0.1:8000/combined-risk', {
+        const res = await fetch(`${API_BASE_URL}/combined-risk`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ session_id: sessionId })
@@ -92,7 +93,7 @@ const CombinedRisk = () => {
         <h1>Combined Triage Result</h1>
         <p className="subtitle">This synthesis fuses your questionnaire responses and image analysis for a comprehensive assessment.</p>
 
-        <div className={`result-card urgency-${urgencyClass}`}>
+        <div className={`cr-result-card urgency-${urgencyClass}`}>
           <div className="urgency-badge">
             {fusionData?.urgency?.toUpperCase() || 'UNKNOWN'}
           </div>

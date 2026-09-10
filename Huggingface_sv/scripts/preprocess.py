@@ -37,10 +37,11 @@ def preprocess_image(img_path_or_pil, min_resolution=100):
     if img.mode != 'RGB':
         img = img.convert('RGB')
 
-    # 3. Apply CLAHE contrast enhancement
-    # Convert PIL Image to OpenCV (numpy array)
-    img_np = np.array(img)
-    # PIL is RGB, OpenCV uses BGR, but we convert directly to LAB from RGB
+    # 3 & 4. Resize to 224x224 (LANCZOS)
+    img_resized = img.resize((224, 224), Image.Resampling.LANCZOS)
+
+    # 5. Apply CLAHE contrast enhancement AFTER resize
+    img_np = np.array(img_resized)
     lab = cv2.cvtColor(img_np, cv2.COLOR_RGB2LAB)
     l, a, b = cv2.split(lab)
     
@@ -49,13 +50,10 @@ def preprocess_image(img_path_or_pil, min_resolution=100):
     
     limg = cv2.merge((cl, a, b))
     img_clahe_np = cv2.cvtColor(limg, cv2.COLOR_LAB2RGB)
-    
     img_clahe = Image.fromarray(img_clahe_np)
 
-    # 4, 6, 7: Resize to 224x224 (LANCZOS), ToTensor, Normalize
-    # We use torchvision transforms for this
+    # 6. ToTensor, Normalize
     preprocess = transforms.Compose([
-        transforms.Resize((224, 224), interpolation=transforms.InterpolationMode.LANCZOS),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
     ])

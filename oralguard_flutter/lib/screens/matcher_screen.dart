@@ -93,13 +93,20 @@ class _MatcherScreenState extends State<MatcherScreen> {
         final all = [...benignList, ...malignantList];
         final lowCount = all.where((r) => r.similarity < 0.55).length;
 
+        final newSessionId = data['session_id'] as String?;
+
         setState(() {
-          _sessionId = sessionId;
+          _sessionId = newSessionId;
           _benign = benignList;
           _malignant = malignantList;
           _showQuality = all.isNotEmpty && lowCount > all.length / 2;
           _loading = false;
         });
+
+        if (newSessionId != null && newSessionId.isNotEmpty) {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('cbir_session_id', newSessionId);
+        }
       } else {
         throw Exception('Server error: ${response.statusCode}');
       }
@@ -136,7 +143,7 @@ class _MatcherScreenState extends State<MatcherScreen> {
   @override
   Widget build(BuildContext context) {
     final isMobile = Bp.isMobile(context);
-    final widget.isWide = Bp.widget.isWide(context);
+    final isWide = Bp.isWide(context);
     final hPad = isMobile ? 16.0 : 20.0;
     final fs = fontScale(context);
 
@@ -192,10 +199,11 @@ class _MatcherScreenState extends State<MatcherScreen> {
                 if (_benign.isNotEmpty || _malignant.isNotEmpty) ...[
                   const SizedBox(height: 28),
                   _ResultsSection(
-                    benign: _widget.benign,
-                    malignant: _widget.malignant,
+                    benign: _benign,
+                    malignant: _malignant,
                     userImageBytes: _pickedBytes,
-                    widget.isWide: widget.isWide,
+                    isWide: isWide,
+                    sessionId: _sessionId,
                   ),
                 ],
                 const SizedBox(height: 36),
@@ -508,14 +516,14 @@ class _ResultsSection extends StatefulWidget {
   final List<MatchResult> benign;
   final List<MatchResult> malignant;
   final Uint8List? userImageBytes;
-  final bool widget.isWide;
+  final bool isWide;
   final String? sessionId;
 
   const _ResultsSection({
-    required this.widget.benign,
-    required this.widget.malignant,
+    required this.benign,
+    required this.malignant,
     required this.userImageBytes,
-    required this.widget.isWide,
+    required this.isWide,
     this.sessionId,
   });
 
@@ -631,7 +639,7 @@ class _ResultColumn extends StatelessWidget {
     final label = isBenign ? 'Benign Matches' : 'Malignant Matches';
     final fs = fontScale(context);
 
-    final crossCount = Bp.widget.isWide(context) ? 3 : (Bp.isMobile(context) ? 2 : 3);
+    final crossCount = Bp.isWide(context) ? 3 : (Bp.isMobile(context) ? 2 : 3);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -673,7 +681,7 @@ class _ResultColumn extends StatelessWidget {
     showDialog(
       context: context,
       builder: (_) => _LightboxDialog(
-          result: result, type: type, userImageBytes: widget.userImageBytes),
+          result: result, type: type, userImageBytes: userImageBytes),
     );
   }
 }

@@ -5,6 +5,8 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../theme.dart';
 import '../widgets/nav_bar.dart';
+import '../widgets/clinician_bottom_sheet.dart';
+import '../l10n/app_localizations.dart';
 
 class CombinedRiskScreen extends StatefulWidget {
   const CombinedRiskScreen({super.key});
@@ -148,13 +150,22 @@ class _CombinedRiskScreenState extends State<CombinedRiskScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Combined Triage Result',
-                style: GoogleFonts.playfairDisplay(fontSize: 32 * fs, color: AppColors.ink),
+              GestureDetector(
+                onLongPress: () async {
+                  final prefs = await SharedPreferences.getInstance();
+                  final sessionId = prefs.getString('cbir_session_id');
+                  if (sessionId != null && sessionId.isNotEmpty && context.mounted) {
+                    ClinicianDiagnosisBottomSheet.show(context, sessionId);
+                  }
+                },
+                child: Text(
+                  AppLocalizations.of(context).get('combined'),
+                  style: GoogleFonts.playfairDisplay(fontSize: 32 * fs, color: AppColors.ink),
+                ),
               ),
               const SizedBox(height: 8),
               Text(
-                'This synthesis fuses your questionnaire responses and image analysis for a comprehensive assessment.',
+                AppLocalizations.of(context).get('combined_desc'),
                 style: GoogleFonts.sourceSans3(fontSize: 14 * fs, color: AppColors.muted, height: 1.5),
               ),
               const SizedBox(height: 32),

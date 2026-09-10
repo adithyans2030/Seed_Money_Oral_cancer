@@ -17,8 +17,23 @@ def main():
     with open(index_pool_path, 'r') as f:
         index_pool = json.load(f)
 
-    device = torch.device("cpu")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     backbone = models.mobilenet_v2(weights=models.MobileNet_V2_Weights.IMAGENET1K_V1)
+    
+    finetuned_path = "../models/finetuned_mobilenetv2.pth"
+    if os.path.exists(finetuned_path):
+        num_ftrs = backbone.classifier[1].in_features
+        backbone.classifier = nn.Sequential(
+            nn.Dropout(p=0.5),
+            nn.Linear(num_ftrs, 2)
+        )
+        backbone.load_state_dict(torch.load(finetuned_path, map_location=device))
+        print(f"Loaded fine-tuned model from {finetuned_path}")
+    else:
+        print("Fine-tuned model not found, using raw ImageNet weights.")
+        
+    backbone.classifier = nn.Identity()
+    
     model = nn.Sequential(
         backbone.features,
         nn.AdaptiveAvgPool2d((1, 1)),

@@ -5,7 +5,7 @@ import urllib.request
 import io
 import numpy as np
 import imagehash
-from PIL import Image
+from PIL import Image, ImageOps
 import torch
 import torch.nn as nn
 import torchvision.models as models
@@ -14,7 +14,9 @@ from sklearn.model_selection import train_test_split
 import time
 from urllib.error import URLError
 
-DATASET_B_PATH = r"c:\Users\adith\OneDrive\Desktop\seed_money_project\Oral Cancer\Oral Cancer Dataset"
+from preprocess import preprocess_image
+
+DATASET_B_PATH = r"c:\Users\adith\OneDrive\Desktop\seed_money_project\Oral-Cancer-Detection---Seed-Money-Project\data\Oral Cancer\Oral Cancer Dataset"
 OLD_INDEX_PATH = r"c:\Users\adith\OneDrive\Desktop\seed_money_project\Oral-Cancer-Detection---Seed-Money-Project\Huggingface_sv\cbir_index.npz"
 BASE_DIR = r"c:\Users\adith\OneDrive\Desktop\seed_money_project\Oral-Cancer-Detection---Seed-Money-Project\Huggingface_sv"
 
@@ -47,7 +49,9 @@ def main():
             try:
                 req = urllib.request.urlopen(url, timeout=10)
                 img_bytes = req.read()
-                img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
+                img = Image.open(io.BytesIO(img_bytes))
+                img = ImageOps.exif_transpose(img)
+                img = img.convert("RGB")
                 img = strip_exif(img)
                 
                 label_int = 0 if str(old_labels[i]) == "benign" else 1
@@ -82,7 +86,9 @@ def main():
                     continue 
                 
                 try:
-                    img = Image.open(path_str).convert("RGB")
+                    img = Image.open(path_str)
+                    img = ImageOps.exif_transpose(img)
+                    img = img.convert("RGB")
                     img = strip_exif(img)
                     resolution = img.width * img.height
                     img_hash = str(imagehash.phash(img))
@@ -101,20 +107,31 @@ def main():
     print(f"Total unique images after deduplication: {len(dataset)}")
     
     print("\n=== Step 2 & 5: Standardizing & Extracting Embeddings ===")
-    device = torch.device("cpu")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     backbone = models.mobilenet_v2(weights=models.MobileNet_V2_Weights.IMAGENET1K_V1)
+    
+    finetuned_path = "../models/finetuned_mobilenetv2.pth"
+    if os.path.exists(finetuned_path):
+        # Reconstruct the classification head temporarily to match the fine-tuned state_dict
+        num_ftrs = backbone.classifier[1].in_features
+        backbone.classifier = nn.Sequential(
+            nn.Dropout(p=0.5),
+            nn.Linear(num_ftrs, 2)
+        )
+        backbone.load_state_dict(torch.load(finetuned_path, map_location=device))
+        print(f"Loaded fine-tuned model from {finetuned_path}")
+    else:
+        print("Fine-tuned model not found! Using raw ImageNet weights.")
+        
+    backbone.classifier = nn.Identity()  # strip classification head
+    backbone.eval()
+    
     model = nn.Sequential(
         backbone.features,
         nn.AdaptiveAvgPool2d((1, 1)),
         nn.Flatten(),
     ).to(device)
     model.eval()
-
-    transform = transforms.Compose([
-        transforms.Resize((IMG_SIZE, IMG_SIZE)),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-    ])
 
     all_embeddings = []
     all_paths = []
@@ -124,7 +141,12 @@ def main():
         for idx, item in enumerate(dataset):
             if idx % 100 == 0:
                 print(f"Extracted {idx}/{len(dataset)}...")
-            tensor = transform(item["image"]).unsqueeze(0).to(device)
+            
+            tensor = preprocess_image(item["image"])
+            if tensor is None:
+                continue
+                
+            tensor = tensor.unsqueeze(0).to(device)
             emb = model(tensor).squeeze().cpu().numpy()
             emb = emb / (np.linalg.norm(emb) + 1e-8)
             

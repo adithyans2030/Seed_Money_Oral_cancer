@@ -9,7 +9,7 @@ Upload an oral lesion image to retrieve visually similar cases from a curated da
 
 ```
 ├── Documents/          # SRS, UI design, literature review, PPT, conference papers
-├── Huggingface_sv/     # FastAPI backend with XGBoost and CBIR logic
+├── Huggingface_sv/     # FastAPI backend with CBIR logic and rule-based risk scoring
 ├── website_react/      # React web frontend (Vite)
 ├── website/            # Legacy Web frontend
 ├── oralguard_flutter/  # Flutter mobile application (Android/iOS)
@@ -25,7 +25,7 @@ Located in `Huggingface_sv/`
 
 - MobileNetV2 backbone extracts feature embeddings from uploaded images for CBIR.
 - Cosine similarity search against a pre-built index (`cbir_index.npz`) returning top benign/malignant matches.
-- XGBoost classification model evaluates patient risk factors from a questionnaire.
+- Evidence-based weighted scoring engine evaluates patient risk factors from a questionnaire, using published oral-cancer relative-risk weightings rather than a trained model (see Huggingface_sv/app.py for rationale — the previously available public risk-factor dataset showed no measurable relationship between its features and outcome).
 - Advanced Triage Fusion logic combines both the questionnaire and image similarity for a clinical recommendation.
 - UUID session tracking and persistent storage in Supabase.
 
@@ -48,7 +48,7 @@ Located in `oralguard_flutter/`
 ## Recent Updates & Bug Fixes
 - **Demographics & Subgroup Analysis**: Added Occupation field (Manual Labour, Office, Other) across the entire stack (React, Flutter, FastAPI, and Postgres). The `/metrics` endpoint and local `subgroup_analysis.py` scripts now calculate sensitivity and specificity by Occupational subgroups to ensure clinical fairness.
 - **Triage Fusion Engine**: Updated `/combined-risk` to robustly handle partial data gracefully. If a patient only uses one of the two tools, the system provides an immediate fallback recommendation instead of failing.
-- **XGBoost Feature Importance**: Local feature importance logic was implemented. The system now accurately lists the exact, specific risk factors that contributed most heavily to *your* personal risk profile.
+- **Risk Scoring Engine Replaced**: The questionnaire's XGBoost model was found to be trained on a dataset whose risk-factor columns had no statistically measurable relationship with the diagnosis label (near-zero correlation across all 15 features, verified on 85k rows). Replaced with a transparent, literature-weighted rule-based scorer — symptoms (a non-healing sore, patches, etc.) are weighted far above background lifestyle risk factors, matching real triage priority. Feature attribution is now exact (based on actual point contribution) rather than an approximation.
 - **Decision Rule Tuning**: Implemented a k-NN (k=5) majority voting mechanism for image retrieval with an empirically tuned similarity threshold for improved specificity.
 - **API Reliability**: Fixed Supabase Postgres row tracking. Refactored React promises to prevent race conditions during triage calculation. Cleaned up error boundaries.
 

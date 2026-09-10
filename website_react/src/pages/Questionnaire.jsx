@@ -1,11 +1,12 @@
 import { useState, useRef, useEffect } from 'react';
 import SelfExamModal from '../components/SelfExamModal';
+import { API_BASE_URL } from '../config';
 import './Questionnaire.css';
 
 export default function Questionnaire() {
   const [isExamOpen, setIsExamOpen] = useState(false);
   const [answers, setAnswers] = useState({});
-  const [demographics, setDemographics] = useState({ age: '', gender: '1', region: '', occupation: '' });
+  const [demographics, setDemographics] = useState({ age: '', gender: '1', region: '', occupation: '', diet: '1' });
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [resultData, setResultData] = useState(null);
   const [combinedRisk, setCombinedRisk] = useState(null);
@@ -13,7 +14,7 @@ export default function Questionnaire() {
   const resultCardRef = useRef(null);
 
   // Constants
-  const totalQuestions = 21; // Estimate based on original logic
+  const totalQuestions = 22; // Estimate based on original logic
   const answeredCount = Object.keys(answers).length;
   const progressPct = Math.min((answeredCount / totalQuestions) * 100, 100);
 
@@ -23,7 +24,7 @@ export default function Questionnaire() {
 
   const resetForm = () => {
     setAnswers({});
-    setDemographics({ age: '', gender: '1', region: '', occupation: '' });
+    setDemographics({ age: '', gender: '1', region: '', occupation: '', diet: '1' });
     setResultData(null);
     setCombinedRisk(null);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -44,17 +45,17 @@ export default function Questionnaire() {
         gender: parseInt(gender),
         region: region || 'Unknown',
         occupation: demographics.occupation || null,
-        q_tobacco: answers.c1 === 'yes' ? 1 : 0,
+        q_tobacco: (answers.c1 === 'yes' || answers.c2 === 'yes') ? 1 : 0,
         q_alcohol: answers.c4 === 'yes' ? 1 : 0,
         q_hpv: answers.c5 === 'yes' ? 1 : 0,
         q_betel: answers.c3 === 'yes' ? 1 : 0,
         q_sun: answers.c6 === 'yes' ? 1 : 0,
-        q_hygiene: 0,
-        q_diet: 0,
+        q_hygiene: answers.hygiene === 'yes' ? 1 : 0,
+        q_diet: demographics.diet !== '' ? parseInt(demographics.diet) : 1,
         q_family: answers.c7 === 'yes' ? 1 : 0,
         q_immune: answers.c9 === 'yes' ? 1 : 0,
         q_lesions: (answers.s1 === 'yes' || answers.c8 === 'yes') ? 1 : 0,
-        q_bleeding: 0,
+        q_bleeding: answers.s3 === 'yes' ? 1 : 0,
         q_swallowing: answers.s5 === 'yes' ? 1 : 0,
         q_patches: answers.s2 === 'yes' ? 1 : 0,
         questionnaire_raw: answers
@@ -67,7 +68,7 @@ export default function Questionnaire() {
     };
 
     try {
-      const res = await fetch('http://127.0.0.1:8000/predict-risk', {
+      const res = await fetch(`${API_BASE_URL}/predict-risk`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -133,7 +134,7 @@ export default function Questionnaire() {
 
   const checkCombinedRisk = async (sessionId) => {
     try {
-      const res = await fetch('http://127.0.0.1:8000/combined-risk', {
+      const res = await fetch(`${API_BASE_URL}/combined-risk`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ session_id: sessionId })
@@ -292,6 +293,22 @@ export default function Questionnaire() {
             </select>
           </div>
         </div>
+        <div className="question-item">
+          <div className="q-text">Diet:
+            <small>How often does your diet include fruits and vegetables?</small>
+          </div>
+          <div style={{ flexShrink: 0 }}>
+            <select
+              value={demographics.diet}
+              onChange={e => setDemographics({...demographics, diet: e.target.value})}
+              style={{ padding: '8px', border: '1px solid var(--border)', borderRadius: '4px', width: '140px', fontFamily: 'inherit' }}
+            >
+              <option value="0">Low</option>
+              <option value="1">Medium</option>
+              <option value="2">High</option>
+            </select>
+          </div>
+        </div>
       </div>
 
       <div className="section">
@@ -312,6 +329,7 @@ export default function Questionnaire() {
         {renderQuestion('c7', '7. Do you have a family history of oral or other head and neck cancers?')}
         {renderQuestion('c8', '8. Have you previously been diagnosed with a potentially malignant oral disorder?', 'Examples: Leukoplakia, Erythroplakia, Oral Submucous Fibrosis.')}
         {renderQuestion('c9', '9. Do you have a compromised immune system?', 'Due to HIV/AIDS, immunosuppressive drugs, or organ transplant.')}
+        {renderQuestion('hygiene', '10. Would you describe your oral hygiene as poor?', 'Infrequent brushing/flossing, or no regular dental check-ups.')}
       </div>
 
       <div className="section">
@@ -323,31 +341,31 @@ export default function Questionnaire() {
           </div>
         </div>
 
-        {renderQuestion('s1', '10. Do you have a sore, ulcer, or lump in your mouth that has not healed within 3 weeks?')}
+        {renderQuestion('s1', '11. Do you have a sore, ulcer, or lump in your mouth that has not healed within 3 weeks?')}
         {renderDiff('s1', 'd1', 'Did this sore appear immediately after a minor injury?', 'e.g., biting your cheek, sharp food, or a broken tooth rubbing the area.')}
 
-        {renderQuestion('s2', '11. Do you have a white or red patch in your mouth that you cannot wipe off?')}
+        {renderQuestion('s2', '12. Do you have a white or red patch in your mouth that you cannot wipe off?')}
         {renderDiff('s2', 'd2', 'Is the patch painful, burning, or sensitive to spicy foods?', 'Some benign conditions like thrush or lichen planus can present this way.')}
 
-        {renderQuestion('s3', '12. Have you experienced unexplained bleeding in your mouth?')}
+        {renderQuestion('s3', '13. Have you experienced unexplained bleeding in your mouth?')}
         {renderDiff('s3', 'd3', 'Does the bleeding only occur when brushing or flossing?', 'May indicate gum disease rather than malignancy.')}
 
-        {renderQuestion('s4', '13. Have you noticed any loose teeth with no obvious dental cause?')}
+        {renderQuestion('s4', '14. Have you noticed any loose teeth with no obvious dental cause?')}
         {renderDiff('s4', 'd4', 'Have you previously been diagnosed with severe gum disease (periodontitis)?')}
 
-        {renderQuestion('s5', '14. Are you experiencing difficulty or pain when chewing or swallowing?')}
+        {renderQuestion('s5', '15. Are you experiencing difficulty or pain when chewing or swallowing?')}
         {renderDiff('s5', 'd5', 'Did this difficulty start suddenly alongside a cold or sore throat?')}
 
-        {renderQuestion('s6', '15. Do you have a persistent sore throat or feel like something is caught in your throat?')}
+        {renderQuestion('s6', '16. Do you have a persistent sore throat or feel like something is caught in your throat?')}
         {renderDiff('s6', 'd6', 'Do you suffer from frequent acid reflux (heartburn)?')}
 
-        {renderQuestion('s7', '16. Is your voice persistently hoarse or has it changed significantly over the last 3 weeks?')}
+        {renderQuestion('s7', '17. Is your voice persistently hoarse or has it changed significantly over the last 3 weeks?')}
         {renderDiff('s7', 'd7', 'Have you recently had a severe respiratory infection or used your voice excessively?')}
 
-        {renderQuestion('s8', '17. Do you have a lump or swelling in your neck that has lasted more than 3 weeks?')}
+        {renderQuestion('s8', '18. Do you have a lump or swelling in your neck that has lasted more than 3 weeks?')}
         {renderDiff('s8', 'd8', 'Is the lump tender, and did it appear at the same time as an infection or toothache?')}
 
-        {renderQuestion('s9', '18. Have you experienced numbness in your tongue, lips, or mouth?')}
+        {renderQuestion('s9', '19. Have you experienced numbness in your tongue, lips, or mouth?')}
       </div>
 
       <div className="submit-row">
@@ -387,7 +405,7 @@ export default function Questionnaire() {
               {combinedRisk && (
                 <div style={{ 
                   marginTop: '16px', padding: '16px', border: '1px solid #d9cec4', borderRadius: '8px',
-                  backgroundColor: combinedRisk.urgency_color === 'red' ? 'var(--rust-light)' : combinedRisk.urgency_color === 'green' ? 'var(--sage-light)' : '#fff8e6'
+                  backgroundColor: combinedRisk.urgency === 'red' ? 'var(--rust-light)' : combinedRisk.urgency === 'green' ? 'var(--sage-light)' : '#fff8e6'
                 }}>
                   <h4 style={{ marginBottom: '8px', fontFamily: '"Playfair Display", serif', fontSize: '18px', fontWeight: 'normal' }}>Combined Triage Assessment</h4>
                   <div style={{ fontWeight: 600, marginBottom: '8px', fontSize: '14px' }}>{combinedRisk.combined_risk_label}</div>

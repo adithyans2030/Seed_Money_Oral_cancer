@@ -7,6 +7,11 @@ import 'screens/matcher_screen.dart';
 import 'screens/self_exam_screen.dart';
 import 'screens/combined_risk_screen.dart';
 
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'l10n/app_localizations.dart';
+
+final ValueNotifier<Locale> appLocale = ValueNotifier<Locale>(const Locale('en'));
+
 void main() {
   runApp(const OralGuardApp());
 }
@@ -26,11 +31,28 @@ class OralGuardApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp.router(
-      title: 'OralGuard',
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.theme,
-      routerConfig: _router,
+    return ValueListenableBuilder<Locale>(
+      valueListenable: appLocale,
+      builder: (context, locale, child) {
+        return MaterialApp.router(
+          title: 'OralGuard',
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.theme,
+          routerConfig: _router,
+          locale: locale,
+          supportedLocales: const [
+            Locale('en', ''),
+            Locale('hi', ''),
+            Locale('kn', ''),
+          ],
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+        );
+      },
     );
   }
 }

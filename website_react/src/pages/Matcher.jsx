@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { Camera, Upload, Trash2, X } from 'lucide-react';
 import SelfExamModal from '../components/SelfExamModal';
+import { API_BASE_URL } from '../config';
 import './Matcher.css';
 
 export default function Matcher() {
@@ -12,6 +13,7 @@ export default function Matcher() {
   const [results, setResults] = useState(null);
   const [decision, setDecision] = useState(null);
   const [combinedRisk, setCombinedRisk] = useState(null);
+  const [showQuality, setShowQuality] = useState(false);
   
   const [lightboxData, setLightboxData] = useState(null);
 
@@ -32,6 +34,7 @@ export default function Matcher() {
     setResults(null);
     setDecision(null);
     setCombinedRisk(null);
+    setShowQuality(false);
     
     // Automatically submit after a short delay
     setTimeout(() => submitImage(selectedFile), 800);
@@ -53,16 +56,23 @@ export default function Matcher() {
     formData.append("session_id", sid);
 
     try {
-      const res = await fetch("http://127.0.0.1:8000/search", {
+      const res = await fetch(`${API_BASE_URL}/search`, {
         method: "POST",
         body: formData
       });
       
       if (!res.ok) throw new Error("API Error");
       const data = await res.json();
-      
+
       setResults(data);
       computeDecision(data);
+
+      const allMatches = [
+        ...(data.results?.benign || []),
+        ...(data.results?.malignant || [])
+      ];
+      const lowCount = allMatches.filter(m => m.similarity < 0.55).length;
+      setShowQuality(allMatches.length > 0 && lowCount > allMatches.length / 2);
       
       const hasQuestionnaire = localStorage.getItem('questionnaire_done') === 'true';
       if (hasQuestionnaire) {
@@ -83,7 +93,7 @@ export default function Matcher() {
 
   const checkCombinedRisk = async (sessionId) => {
     try {
-      const res = await fetch('http://127.0.0.1:8000/combined-risk', {
+      const res = await fetch(`${API_BASE_URL}/combined-risk`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ session_id: sessionId })
@@ -100,27 +110,22 @@ export default function Matcher() {
   };
 
   const computeDecision = (data) => {
-    if (!data.results) return;
-    const combined = [
-      ...(data.results.benign || []).map(m => ({ ...m, type: 'benign' })),
-      ...(data.results.malignant || []).map(m => ({ ...m, type: 'malignant' }))
-    ];
-    combined.sort((a, b) => b.similarity - a.similarity);
+    if (!data.decision) return;
     
-    const top3 = combined.slice(0, 3);
-    const malignantCount = top3.filter(m => m.type === 'malignant').length;
+    // Use the backend's calculated decision, which accounts for the fine-tuned 0.7 threshold
+    const action = data.decision.action;
     
-    if (malignantCount >= 2) {
+    if (action === 'urgent_refer') {
       setDecision({
         type: 'urgent',
         title: 'High Visual Similarity to Malignant Cases',
         desc: 'The visual characteristics strongly align with malignant cases in our database. Urgent clinical evaluation is recommended.'
       });
-    } else if (malignantCount === 1) {
+    } else if (action === 'refer') {
       setDecision({
         type: 'refer',
-        title: 'Mixed Visual Indicators',
-        desc: 'The lesion shares features with both benign and malignant cases. A dentist should evaluate this in person.'
+        title: 'Mixed / Inconclusive Visual Indicators',
+        desc: 'The lesion shares features with both benign and malignant cases or similarity is low. A dentist should evaluate this in person.'
       });
     } else {
       setDecision({
@@ -188,6 +193,12 @@ export default function Matcher() {
             </div>
           )}
 
+          {!previewUrl && (
+            <p className="upload-hint">
+              For the clearest result, get close enough that the lesion fills most of the frame — wide shots of the whole mouth make it harder for the AI to pinpoint the area of concern.
+            </p>
+          )}
+
           {previewUrl && (
             <div className="image-preview-area visible">
               <div className="image-preview-bar">
@@ -214,7 +225,7 @@ export default function Matcher() {
             </div>
           )}
 
-          {results && results.blur_score && results.blur_score < 100 && (
+          {showQuality && (
             <div className="quality-warning visible">
               <h4>Low Image Quality Detected</h4>
               <p>The image appears blurry or poorly lit, which may reduce matching accuracy.</p>
@@ -240,10 +251,20 @@ export default function Matcher() {
           {combinedRisk && (
             <div className={`combined-risk-card visible`}>
               <h3>Combined Triage Assessment</h3>
-              <div className={`combined-risk-label ${combinedRisk.urgency_color === 'red' ? 'cr-red' : combinedRisk.urgency_color === 'green' ? 'cr-green' : 'cr-amber'}`}>
+              <div className={`combined-risk-label ${combinedRisk.urgency === 'red' ? 'cr-red' : combinedRisk.urgency === 'green' ? 'cr-green' : 'cr-amber'}`}>
                 {combinedRisk.combined_risk_label}
               </div>
               <p>{combinedRisk.recommendation}</p>
+            </div>
+          )}
+
+          {results.gradcam_base64 && (
+            <div className="gradcam-section visible" style={{ marginTop: '20px', textAlign: 'center' }}>
+              <div className="gradcam-header" style={{ marginBottom: '12px' }}>
+                <h3 style={{ fontSize: '1.2rem', color: '#111827', margin: 0 }}>AI Explainability (Grad-CAM)</h3>
+                <p style={{ fontSize: '0.9rem', color: '#4b5563', margin: '4px 0 0 0' }}>The AI focused on the red/yellow regions when matching your image against the malignant database.</p>
+              </div>
+              <img src={results.gradcam_base64} alt="Grad-CAM Heatmap" style={{ width: '224px', height: '224px', borderRadius: '8px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }} />
             </div>
           )}
 

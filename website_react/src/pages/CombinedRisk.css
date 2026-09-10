@@ -76,28 +76,28 @@
   margin-bottom: 2.5rem;
 }
 
-.result-card {
+.cr-result-card {
   padding: 2.5rem;
   border-radius: 16px;
   margin-bottom: 2rem;
 }
 
-.result-card.urgency-high {
+.cr-result-card.urgency-high {
   background-color: rgba(181, 75, 51, 0.05);
   border: 1px solid rgba(181, 75, 51, 0.5);
 }
 
-.result-card.urgency-moderate {
+.cr-result-card.urgency-moderate {
   background-color: rgba(199, 107, 72, 0.05);
   border: 1px solid rgba(199, 107, 72, 0.5);
 }
 
-.result-card.urgency-low {
+.cr-result-card.urgency-low {
   background-color: rgba(121, 137, 122, 0.05);
   border: 1px solid rgba(121, 137, 122, 0.5);
 }
 
-.result-card.urgency-muted {
+.cr-result-card.urgency-muted {
   background-color: var(--bg-light);
   border: 1px solid var(--border-color);
 }
