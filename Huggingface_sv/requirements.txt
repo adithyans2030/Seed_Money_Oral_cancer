@@ -1,3 +1,4 @@
+# Core app runtime (app.py) — required for the API/container to start at all
 fastapi
 uvicorn
 torch
@@ -7,7 +8,18 @@ numpy
 scikit-learn
 python-multipart
 supabase
-xgboost
 joblib
 imagehash
 python-dotenv
+opencv-python-headless
+
+# Training / evaluation / CI scripts (Huggingface_sv/scripts/*)
+xgboost
+pandas
+scipy
+statsmodels
+tabulate
+matplotlib
+seaborn
+umap-learn
+imbalanced-learn
